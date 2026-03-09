@@ -19,11 +19,6 @@
       user-select: none;
     }
 
-    body {
-      position: fixed;
-      inset: 0;
-    }
-
     #rotateScreen {
       position: fixed;
       top: 0;
@@ -386,7 +381,12 @@
   </style>
 </head>
 <body>
-  <div id="rotateScreen">スマホを横にしてください</div>
+  <div id="rotateScreen">
+    <div style="text-align: center;">
+      <div style="font-size: 64px; margin-bottom: 16px;">📱🔄</div>
+      スマホを横にしてください
+    </div>
+  </div>
 
   <div id="game">
     <div id="sunGlow" class="bg-layer"></div>
@@ -704,6 +704,13 @@
       startOverlay.style.display = 'none';
       gameOverOverlay.style.display = 'none';
       requestAnimationFrame(loop);
+
+      // フルスクリーン化
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(err => console.log(err));
+      } else if (document.documentElement.webkitRequestFullscreen) {
+        document.documentElement.webkitRequestFullscreen();
+      }
     }
 
     function updateBackground(deltaScale) {
@@ -854,7 +861,9 @@
 
     // --- 追加箇所：画面の向き判定処理 ---
     function checkOrientation() {
-      if (window.innerWidth > window.innerHeight) {
+      const isLandscape = window.matchMedia("(orientation: landscape)").matches || window.innerWidth > window.innerHeight;
+
+      if (isLandscape) {
         document.getElementById("rotateScreen").style.display = "none";
         document.getElementById("game").style.display = "block";
       } else {
@@ -863,8 +872,15 @@
       }
     }
 
-    window.addEventListener("resize", checkOrientation);
+    window.addEventListener("resize", () => {
+      setTimeout(checkOrientation, 120);
+    });
     window.addEventListener("orientationchange", checkOrientation);
+    window.addEventListener("visibilitychange", checkOrientation);
+    window.addEventListener("load", () => {
+      setTimeout(checkOrientation, 200);
+    });
+
     checkOrientation();
     // --------------------------------
 

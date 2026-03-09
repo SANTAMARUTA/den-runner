@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>DEN RUNNER</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>DEN RUNNER v2</title>
   <style>
     * { box-sizing: border-box; }
 
@@ -12,7 +12,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #78c8ff;
+      background: #7ccfff;
       font-family: Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
       touch-action: manipulation;
       -webkit-user-select: none;
@@ -44,8 +44,7 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background:
-        linear-gradient(to bottom, #78c8ff 0%, #9addff 45%, #dff7ff 100%);
+      background: linear-gradient(to bottom, #6ec7ff 0%, #bdeaff 52%, #ebfbff 100%);
     }
 
     .bg-layer {
@@ -56,80 +55,106 @@
       will-change: transform;
     }
 
-    #skyGlow {
+    #sunGlow {
       top: 0;
       height: 100%;
       background:
-        radial-gradient(circle at 15% 15%, rgba(255,255,255,0.55) 0 8%, transparent 9%),
-        radial-gradient(circle at 75% 12%, rgba(255,255,255,0.35) 0 6%, transparent 7%),
-        radial-gradient(circle at 45% 22%, rgba(255,255,255,0.18) 0 10%, transparent 11%);
-      opacity: 0.9;
+        radial-gradient(circle at 16% 17%, rgba(255, 246, 168, 0.9) 0 6%, rgba(255, 246, 168, 0.28) 7%, transparent 14%),
+        radial-gradient(circle at 80% 18%, rgba(255,255,255,0.32) 0 7%, transparent 15%),
+        radial-gradient(circle at 58% 10%, rgba(255,255,255,0.18) 0 8%, transparent 14%);
+      opacity: 0.95;
     }
 
-    #cloudsFar {
-      top: 8%;
-      height: 22%;
+    #clouds {
+      top: 7%;
+      height: 24%;
       background:
-        radial-gradient(circle at 8% 50%, rgba(255,255,255,0.95) 0 12%, transparent 13%),
-        radial-gradient(circle at 14% 40%, rgba(255,255,255,0.95) 0 10%, transparent 11%),
-        radial-gradient(circle at 20% 52%, rgba(255,255,255,0.95) 0 12%, transparent 13%),
-        radial-gradient(circle at 35% 60%, rgba(255,255,255,0.9) 0 11%, transparent 12%),
-        radial-gradient(circle at 41% 48%, rgba(255,255,255,0.9) 0 9%, transparent 10%),
-        radial-gradient(circle at 47% 60%, rgba(255,255,255,0.9) 0 11%, transparent 12%),
-        radial-gradient(circle at 60% 42%, rgba(255,255,255,0.92) 0 10%, transparent 11%),
-        radial-gradient(circle at 66% 52%, rgba(255,255,255,0.92) 0 12%, transparent 13%),
-        radial-gradient(circle at 72% 42%, rgba(255,255,255,0.92) 0 10%, transparent 11%),
-        radial-gradient(circle at 86% 58%, rgba(255,255,255,0.9) 0 11%, transparent 12%),
-        radial-gradient(circle at 92% 46%, rgba(255,255,255,0.9) 0 9%, transparent 10%),
-        radial-gradient(circle at 98% 58%, rgba(255,255,255,0.9) 0 11%, transparent 12%);
-      opacity: 0.55;
+        radial-gradient(circle at 8% 55%, rgba(255,255,255,0.94) 0 11%, transparent 12%),
+        radial-gradient(circle at 14% 44%, rgba(255,255,255,0.94) 0 9%, transparent 10%),
+        radial-gradient(circle at 20% 57%, rgba(255,255,255,0.94) 0 11%, transparent 12%),
+        radial-gradient(circle at 34% 60%, rgba(255,255,255,0.9) 0 10%, transparent 11%),
+        radial-gradient(circle at 40% 50%, rgba(255,255,255,0.9) 0 8%, transparent 9%),
+        radial-gradient(circle at 46% 61%, rgba(255,255,255,0.9) 0 10%, transparent 11%),
+        radial-gradient(circle at 61% 48%, rgba(255,255,255,0.92) 0 10%, transparent 11%),
+        radial-gradient(circle at 67% 57%, rgba(255,255,255,0.92) 0 11%, transparent 12%),
+        radial-gradient(circle at 73% 48%, rgba(255,255,255,0.92) 0 10%, transparent 11%),
+        radial-gradient(circle at 87% 62%, rgba(255,255,255,0.92) 0 10%, transparent 11%),
+        radial-gradient(circle at 93% 49%, rgba(255,255,255,0.92) 0 8%, transparent 9%),
+        radial-gradient(circle at 99% 61%, rgba(255,255,255,0.92) 0 10%, transparent 11%);
+      opacity: 0.72;
     }
 
     #mountainsFar {
-      bottom: 18%;
-      height: 24%;
+      bottom: 19%;
+      height: 22%;
       background:
-        linear-gradient(135deg, transparent 18%, #86c68b 19% 44%, transparent 45%) 0 100% / 24% 100% repeat-x,
-        linear-gradient(225deg, transparent 18%, #7bbd81 19% 44%, transparent 45%) 12% 100% / 24% 100% repeat-x;
+        linear-gradient(135deg, transparent 18%, #90c88d 19% 45%, transparent 46%) 0 100% / 24% 100% repeat-x,
+        linear-gradient(225deg, transparent 18%, #84be81 19% 45%, transparent 46%) 12% 100% / 24% 100% repeat-x;
       opacity: 0.9;
     }
 
     #mountainsNear {
-      bottom: 13%;
-      height: 28%;
+      bottom: 14%;
+      height: 27%;
       background:
-        linear-gradient(135deg, transparent 18%, #59a86a 19% 48%, transparent 49%) 0 100% / 20% 100% repeat-x,
-        linear-gradient(225deg, transparent 18%, #4f9b60 19% 48%, transparent 49%) 10% 100% / 20% 100% repeat-x;
-      opacity: 0.95;
+        linear-gradient(135deg, transparent 18%, #63aa70 19% 49%, transparent 50%) 0 100% / 20% 100% repeat-x,
+        linear-gradient(225deg, transparent 18%, #579864 19% 49%, transparent 50%) 10% 100% / 20% 100% repeat-x;
+      opacity: 0.96;
+    }
+
+    #city {
+      bottom: 14%;
+      height: 12%;
+      background:
+        linear-gradient(to top, rgba(55,85,110,0.72), rgba(80,110,140,0.72)),
+        repeating-linear-gradient(
+          to right,
+          transparent 0 18px,
+          rgba(255,255,255,0.12) 18px 22px,
+          transparent 22px 44px
+        );
+      clip-path: polygon(0 100%, 0 55%, 6% 55%, 6% 30%, 12% 30%, 12% 65%, 20% 65%, 20% 20%, 28% 20%, 28% 60%, 36% 60%, 36% 32%, 44% 32%, 44% 70%, 54% 70%, 54% 18%, 62% 18%, 62% 58%, 70% 58%, 70% 26%, 78% 26%, 78% 64%, 86% 64%, 86% 36%, 94% 36%, 94% 58%, 100% 58%, 100% 100%);
+      opacity: 0.32;
     }
 
     #trees {
-      bottom: 13%;
-      height: 16%;
+      bottom: 14%;
+      height: 15%;
       background:
-        radial-gradient(circle at 4% 75%, #2d7f43 0 5%, transparent 5.2%),
+        radial-gradient(circle at 4% 76%, #2f7f42 0 5%, transparent 5.1%),
         linear-gradient(#5b3a22, #5b3a22) 4% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 10% 78%, #256d38 0 4.5%, transparent 4.7%),
+        radial-gradient(circle at 10% 78%, #256d38 0 4.5%, transparent 4.6%),
         linear-gradient(#5b3a22, #5b3a22) 10% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 18% 76%, #2d7f43 0 5.5%, transparent 5.7%),
+        radial-gradient(circle at 18% 76%, #2f7f42 0 5.5%, transparent 5.6%),
         linear-gradient(#5b3a22, #5b3a22) 18% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 26% 77%, #256d38 0 4.6%, transparent 4.8%),
+        radial-gradient(circle at 26% 77%, #256d38 0 4.6%, transparent 4.7%),
         linear-gradient(#5b3a22, #5b3a22) 26% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 34% 75%, #2d7f43 0 5.2%, transparent 5.4%),
-        linear-gradient(#5b3a22, #5b3a22) 34% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 44% 77%, #256d38 0 4.8%, transparent 5%),
-        linear-gradient(#5b3a22, #5b3a22) 44% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 54% 75%, #2d7f43 0 5.3%, transparent 5.5%),
-        linear-gradient(#5b3a22, #5b3a22) 54% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 64% 78%, #256d38 0 4.6%, transparent 4.8%),
-        linear-gradient(#5b3a22, #5b3a22) 64% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 74% 76%, #2d7f43 0 5.4%, transparent 5.6%),
-        linear-gradient(#5b3a22, #5b3a22) 74% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 84% 77%, #256d38 0 4.7%, transparent 4.9%),
-        linear-gradient(#5b3a22, #5b3a22) 84% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 94% 75%, #2d7f43 0 5.3%, transparent 5.5%),
-        linear-gradient(#5b3a22, #5b3a22) 94% 100% / 0.7% 30% no-repeat;
+        radial-gradient(circle at 36% 75%, #2f7f42 0 5.3%, transparent 5.4%),
+        linear-gradient(#5b3a22, #5b3a22) 36% 100% / 0.7% 30% no-repeat,
+        radial-gradient(circle at 46% 77%, #256d38 0 4.7%, transparent 4.8%),
+        linear-gradient(#5b3a22, #5b3a22) 46% 100% / 0.6% 28% no-repeat,
+        radial-gradient(circle at 56% 75%, #2f7f42 0 5.4%, transparent 5.5%),
+        linear-gradient(#5b3a22, #5b3a22) 56% 100% / 0.7% 30% no-repeat,
+        radial-gradient(circle at 66% 78%, #256d38 0 4.6%, transparent 4.7%),
+        linear-gradient(#5b3a22, #5b3a22) 66% 100% / 0.6% 28% no-repeat,
+        radial-gradient(circle at 76% 76%, #2f7f42 0 5.4%, transparent 5.5%),
+        linear-gradient(#5b3a22, #5b3a22) 76% 100% / 0.7% 30% no-repeat,
+        radial-gradient(circle at 86% 77%, #256d38 0 4.7%, transparent 4.8%),
+        linear-gradient(#5b3a22, #5b3a22) 86% 100% / 0.6% 28% no-repeat,
+        radial-gradient(circle at 96% 75%, #2f7f42 0 5.3%, transparent 5.4%),
+        linear-gradient(#5b3a22, #5b3a22) 96% 100% / 0.7% 30% no-repeat;
       opacity: 0.9;
+    }
+
+    #grass {
+      position: absolute;
+      left: 0;
+      bottom: 14%;
+      width: 200%;
+      height: 3%;
+      background: repeating-linear-gradient(to right, #46bf4d 0 12px, #5fd466 12px 24px, #3bab42 24px 36px);
+      border-top: 2px solid #8be88b;
+      will-change: transform;
     }
 
     #ground {
@@ -137,85 +162,117 @@
       left: 0;
       bottom: 0;
       width: 200%;
-      height: 13%;
+      height: 14%;
       background:
-        linear-gradient(to bottom, #8d6439 0 8%, #d39f63 8% 100%),
-        repeating-linear-gradient(
-          to right,
-          rgba(255,255,255,0.08) 0 18px,
-          rgba(0,0,0,0.06) 18px 36px
-        );
-      border-top: 4px solid #6d4724;
-      box-shadow: inset 0 8px 0 rgba(255,255,255,0.16);
-      will-change: transform;
-    }
-
-    #grass {
-      position: absolute;
-      left: 0;
-      bottom: 13%;
-      width: 200%;
-      height: 3%;
-      background:
-        repeating-linear-gradient(
-          to right,
-          #42b649 0 12px,
-          #55c95e 12px 24px,
-          #3ca942 24px 36px
-        );
-      border-top: 2px solid #7ee07e;
+        linear-gradient(to bottom, #8e6336 0 8%, #ce9d61 8% 100%),
+        repeating-linear-gradient(to right, rgba(255,255,255,0.08) 0 18px, rgba(0,0,0,0.06) 18px 36px);
+      border-top: 4px solid #6f4721;
+      box-shadow: inset 0 8px 0 rgba(255,255,255,0.15);
       will-change: transform;
     }
 
     #player {
       position: absolute;
-      left: 13vw;
-      bottom: 13%;
-      width: min(20vw, 180px);
+      left: 12vw;
+      bottom: 14%;
+      width: min(20vw, 178px);
       z-index: 30;
       transform-origin: center bottom;
       will-change: transform, bottom;
+      background: transparent !important;
+      mix-blend-mode: normal;
+      image-rendering: auto;
     }
 
     .item {
       position: absolute;
-      width: min(12vw, 110px);
-      z-index: 25;
-      will-change: transform, left;
-      filter: drop-shadow(0 0 8px rgba(255, 20, 147, 0.35));
+      width: min(10vw, 92px);
+      z-index: 26;
+      will-change: transform, left, bottom;
+      background: transparent !important;
+      filter: drop-shadow(0 0 8px rgba(255, 64, 129, 0.35));
+      pointer-events: none;
     }
 
-    .obstacle {
+    .enemy {
       position: absolute;
-      width: min(7vw, 70px);
-      height: min(9vw, 90px);
-      bottom: 13%;
-      z-index: 24;
-      border-radius: 12px 12px 6px 6px;
-      background: linear-gradient(to bottom, #6c4d32, #4d2f16);
-      border: 3px solid rgba(255,255,255,0.15);
-      box-shadow: inset 0 4px 0 rgba(255,255,255,0.14);
+      z-index: 25;
+      will-change: left, bottom;
+      pointer-events: none;
     }
 
-    .obstacle::before,
-    .obstacle::after {
+    .enemy.rock {
+      width: min(6vw, 58px);
+      height: min(6vw, 58px);
+      bottom: 14%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #9d9d9d 0 18%, #727272 19% 60%, #515151 61% 100%);
+      box-shadow: inset -7px -7px 0 rgba(0,0,0,0.15), inset 6px 6px 0 rgba(255,255,255,0.12);
+    }
+
+    .enemy.sign {
+      width: min(6.5vw, 62px);
+      height: min(11vw, 100px);
+      bottom: 14%;
+    }
+
+    .enemy.sign::before {
       content: "";
       position: absolute;
-      top: 10%;
-      width: 18%;
-      height: 34%;
-      background: linear-gradient(to bottom, #f7f7f7, #d7d7d7);
-      border-radius: 5px;
+      left: 44%;
+      bottom: 0;
+      width: 12%;
+      height: 44%;
+      background: #6e4623;
+      border-radius: 4px;
     }
 
-    .obstacle::before { left: 20%; }
-    .obstacle::after  { right: 20%; }
+    .enemy.sign::after {
+      content: "!";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 58%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffd54f;
+      color: #7a1b00;
+      font-weight: 900;
+      font-size: clamp(24px, 4vw, 36px);
+      border: 4px solid #8f5a14;
+      border-radius: 12px;
+      box-shadow: inset 0 4px 0 rgba(255,255,255,0.18);
+    }
+
+    .enemy.drone {
+      width: min(9vw, 88px);
+      height: min(5vw, 46px);
+      border-radius: 20px;
+      background: linear-gradient(to bottom, #4d5a6a, #2d3642);
+      box-shadow: inset 0 3px 0 rgba(255,255,255,0.13);
+    }
+
+    .enemy.drone::before,
+    .enemy.drone::after {
+      content: "";
+      position: absolute;
+      top: -25%;
+      width: 26%;
+      height: 18%;
+      background: #d0d0d0;
+      border-radius: 999px;
+    }
+
+    .enemy.drone::before { left: 10%; }
+    .enemy.drone::after { right: 10%; }
 
     #hud {
       position: absolute;
       top: 14px;
       left: 14px;
-      z-index: 50;
+      z-index: 60;
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
@@ -236,8 +293,8 @@
     .label {
       display: block;
       font-size: 12px;
-      opacity: 0.9;
-      margin-bottom: 2px;
+      opacity: 0.92;
+      margin-bottom: 3px;
     }
 
     .value {
@@ -248,11 +305,11 @@
 
     #message {
       position: absolute;
-      top: 18%;
+      top: 17%;
       left: 50%;
       transform: translateX(-50%);
       z-index: 70;
-      font-size: clamp(24px, 4vw, 44px);
+      font-size: clamp(24px, 4vw, 42px);
       color: #fff45a;
       font-weight: 900;
       text-shadow: 0 0 10px rgba(255,230,0,0.8), 0 3px 10px rgba(0,0,0,0.4);
@@ -277,10 +334,10 @@
     #gameOverOverlay { display: none; }
 
     .card {
-      width: min(88vw, 560px);
+      width: min(88vw, 580px);
       padding: 24px 20px;
       border-radius: 24px;
-      background: rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.16);
       color: #fff;
       text-align: center;
       backdrop-filter: blur(8px);
@@ -336,10 +393,11 @@
   <div id="rotateNotice">スマホを横向きにして遊んでください</div>
 
   <div id="game">
-    <div id="skyGlow" class="bg-layer"></div>
-    <div id="cloudsFar" class="bg-layer"></div>
+    <div id="sunGlow" class="bg-layer"></div>
+    <div id="clouds" class="bg-layer"></div>
     <div id="mountainsFar" class="bg-layer"></div>
     <div id="mountainsNear" class="bg-layer"></div>
+    <div id="city" class="bg-layer"></div>
     <div id="trees" class="bg-layer"></div>
     <div id="grass"></div>
     <div id="ground"></div>
@@ -353,18 +411,23 @@
         <span class="label">スターまで</span>
         <span id="starCounter" class="value">20</span>
       </div>
+      <div class="panel">
+        <span class="label">スピード</span>
+        <span id="speedMeter" class="value">1.0</span>
+      </div>
     </div>
 
     <div id="message"></div>
 
-    <img id="player" src="DENさん走行時.gif" alt="DENさん">
+    <img id="player" src="DENさん走行時.gif" alt="DENさん" />
 
     <div id="startOverlay">
       <div class="card">
-        <h1>DEN RUNNER</h1>
+        <h1>DEN RUNNER v2</h1>
         <p>タップでジャンプ、空中でもう一度タップで<span class="highlight">2段ジャンプ</span></p>
-        <p><span class="highlight">イザックるびぃ</span>を集めてスコア獲得</p>
+        <p><span class="highlight">イザックるびぃ</span>をどんどん集めてスコア獲得</p>
         <p>20個集めると数秒間<span class="highlight">スター無敵</span></p>
+        <p>るびぃはマリオのコインのように、取りやすい並びでも出ます</p>
         <button id="startButton">ゲームスタート</button>
       </div>
     </div>
@@ -383,6 +446,7 @@
     const player = document.getElementById('player');
     const scoreEl = document.getElementById('score');
     const starCounterEl = document.getElementById('starCounter');
+    const speedMeterEl = document.getElementById('speedMeter');
     const startOverlay = document.getElementById('startOverlay');
     const gameOverOverlay = document.getElementById('gameOverOverlay');
     const finalScoreEl = document.getElementById('finalScore');
@@ -391,42 +455,46 @@
     const messageEl = document.getElementById('message');
 
     const bgLayers = [
-      { el: document.getElementById('cloudsFar'), speed: 0.18, x: 0 },
-      { el: document.getElementById('mountainsFar'), speed: 0.45, x: 0 },
-      { el: document.getElementById('mountainsNear'), speed: 0.9, x: 0 },
-      { el: document.getElementById('trees'), speed: 1.5, x: 0 },
-      { el: document.getElementById('grass'), speed: 2.8, x: 0 },
-      { el: document.getElementById('ground'), speed: 4.6, x: 0 }
+      { el: document.getElementById('clouds'), speed: 0.14, x: 0 },
+      { el: document.getElementById('mountainsFar'), speed: 0.28, x: 0 },
+      { el: document.getElementById('mountainsNear'), speed: 0.48, x: 0 },
+      { el: document.getElementById('city'), speed: 0.74, x: 0 },
+      { el: document.getElementById('trees'), speed: 1.05, x: 0 },
+      { el: document.getElementById('grass'), speed: 1.65, x: 0 },
+      { el: document.getElementById('ground'), speed: 2.2, x: 0 }
     ];
 
-    const PLAYER_GROUND_PCT = 13;
-    const INITIAL_GAME_SPEED = 6.5;
+    const PLAYER_GROUND_PCT = 14;
+    const INITIAL_GAME_SPEED = 4.1;
+    const MAX_GAME_SPEED = 6.8;
     const STAR_TARGET = 20;
     const STAR_DURATION = 5000;
-    const RUBY_MIN_BOTTOM = 22;
-    const RUBY_MAX_BOTTOM = 55;
 
     let score = 0;
     let collectedForStar = 0;
     let jumpCount = 0;
     let velocityY = 0;
     let playerY = 0;
-    let gravity = 1.15;
-    let jumpPower = 22;
+    let gravity = 1.02;
+    let jumpPower = 18.4;
     let gameSpeed = INITIAL_GAME_SPEED;
     let invincible = false;
     let running = false;
-    let gameStarted = false;
     let lastTime = 0;
-    let obstacleTimer = 0;
-    let itemTimer = 0;
+    let enemyTimer = 0;
+    let patternTimer = 0;
     let difficultyTimer = 0;
-    let activeObstacles = [];
+    let activeEnemies = [];
     let activeItems = [];
     let touchLocked = false;
+    let itemPatternCooldown = 0;
 
     function pxFromVh(vh) {
       return window.innerHeight * (vh / 100);
+    }
+
+    function groundPx() {
+      return pxFromVh(PLAYER_GROUND_PCT);
     }
 
     function setPlayerVisual(isJumping) {
@@ -438,8 +506,8 @@
 
     function updateHud() {
       scoreEl.textContent = score;
-      const remain = invincible ? '★' : Math.max(0, STAR_TARGET - collectedForStar);
-      starCounterEl.textContent = remain;
+      starCounterEl.textContent = invincible ? '★' : Math.max(0, STAR_TARGET - collectedForStar);
+      speedMeterEl.textContent = (gameSpeed / INITIAL_GAME_SPEED).toFixed(1);
     }
 
     function showMessage(text, duration = 1200) {
@@ -454,9 +522,8 @@
     function jump() {
       if (!running) return;
       if (jumpCount >= 2) return;
-
       jumpCount += 1;
-      velocityY = jumpCount === 1 ? jumpPower : jumpPower * 0.92;
+      velocityY = jumpCount === 1 ? jumpPower : jumpPower * 0.9;
       setPlayerVisual(true);
     }
 
@@ -474,7 +541,6 @@
       player.classList.add('invincible');
       updateHud();
       showMessage('スター無敵！');
-
       clearTimeout(activateStar.timer);
       activateStar.timer = setTimeout(() => {
         invincible = false;
@@ -483,24 +549,113 @@
       }, STAR_DURATION);
     }
 
-    function createObstacle() {
-      const obs = document.createElement('div');
-      obs.className = 'obstacle';
-      obs.style.left = `${window.innerWidth + 20}px`;
-      game.appendChild(obs);
-      activeObstacles.push({ el: obs, x: window.innerWidth + 20, passed: false });
-    }
-
-    function createItem() {
+    function createItem(x, bottomPx) {
       const item = document.createElement('img');
       item.className = 'item';
       item.src = 'イザックるびぃ.png';
       item.alt = 'イザックるびぃ';
-      const bottomPct = RUBY_MIN_BOTTOM + Math.random() * (RUBY_MAX_BOTTOM - RUBY_MIN_BOTTOM);
-      item.style.left = `${window.innerWidth + 20}px`;
-      item.style.bottom = `${bottomPct}%`;
+      item.style.left = `${x}px`;
+      item.style.bottom = `${bottomPx}px`;
       game.appendChild(item);
-      activeItems.push({ el: item, x: window.innerWidth + 20, bottomPct });
+      activeItems.push({ el: item, x, bottomPx });
+    }
+
+    function spawnRubyPattern() {
+      const startX = window.innerWidth + 40;
+      const g = groundPx();
+      const patterns = [
+        () => {
+          const y = g + 105;
+          createItem(startX, y);
+          createItem(startX + 88, y);
+          createItem(startX + 176, y);
+        },
+        () => {
+          createItem(startX, g + 95);
+          createItem(startX + 86, g + 135);
+          createItem(startX + 172, g + 175);
+        },
+        () => {
+          createItem(startX, g + 175);
+          createItem(startX + 82, g + 135);
+          createItem(startX + 164, g + 95);
+        },
+        () => {
+          createItem(startX, g + 110);
+          createItem(startX + 72, g + 110);
+          createItem(startX + 144, g + 150);
+          createItem(startX + 216, g + 110);
+        },
+        () => {
+          createItem(startX, g + 105);
+          createItem(startX + 80, g + 155);
+          createItem(startX + 160, g + 205);
+        }
+      ];
+      const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+      pattern();
+    }
+
+    function spawnSingleRuby() {
+      const startX = window.innerWidth + 40;
+      const g = groundPx();
+      const heights = [g + 95, g + 120, g + 145, g + 170, g + 195];
+      const y = heights[Math.floor(Math.random() * heights.length)];
+      createItem(startX, y);
+    }
+
+    function createEnemy(type) {
+      const enemy = document.createElement('div');
+      enemy.className = `enemy ${type}`;
+
+      let bottom = groundPx();
+      let bobPhase = 0;
+      let bobSpeed = 0;
+      let bobRange = 0;
+
+      if (type === 'drone') {
+        bottom = groundPx() + 150 + Math.random() * 70;
+        bobPhase = Math.random() * Math.PI * 2;
+        bobSpeed = 0.08 + Math.random() * 0.04;
+        bobRange = 10 + Math.random() * 6;
+      }
+
+      enemy.style.left = `${window.innerWidth + 50}px`;
+      enemy.style.bottom = `${bottom}px`;
+      game.appendChild(enemy);
+
+      activeEnemies.push({
+        el: enemy,
+        type,
+        x: window.innerWidth + 50,
+        baseBottom: bottom,
+        bobPhase,
+        bobSpeed,
+        bobRange
+      });
+    }
+
+    function spawnEnemyWave() {
+      const existingGroundEnemies = activeEnemies.filter(e => e.type !== 'drone').length;
+      const existingAirEnemies = activeEnemies.filter(e => e.type === 'drone').length;
+
+      const roll = Math.random();
+
+      if (roll < 0.55) {
+        if (existingGroundEnemies < 1) {
+          createEnemy('rock');
+        }
+      } else if (roll < 0.85) {
+        if (existingGroundEnemies < 1) {
+          createEnemy('sign');
+        }
+      } else {
+        if (existingAirEnemies < 1) {
+          createEnemy('drone');
+        } else if (existingGroundEnemies < 1) {
+          createEnemy('rock');
+        }
+      }
     }
 
     function rectsOverlap(a, b) {
@@ -523,18 +678,20 @@
       invincible = false;
       running = false;
       lastTime = 0;
-      obstacleTimer = 0;
-      itemTimer = 0;
+      enemyTimer = 0;
+      patternTimer = 0;
       difficultyTimer = 0;
+      itemPatternCooldown = 400;
       messageEl.style.opacity = '0';
 
+      clearTimeout(activateStar.timer);
       player.classList.remove('invincible');
       player.style.bottom = `${PLAYER_GROUND_PCT}%`;
       setPlayerVisual(false);
 
-      activeObstacles.forEach(obj => obj.el.remove());
+      activeEnemies.forEach(obj => obj.el.remove());
       activeItems.forEach(obj => obj.el.remove());
-      activeObstacles = [];
+      activeEnemies = [];
       activeItems = [];
 
       bgLayers.forEach(layer => {
@@ -547,7 +704,6 @@
 
     function startGame() {
       resetGame();
-      gameStarted = true;
       running = true;
       startOverlay.style.display = 'none';
       gameOverOverlay.style.display = 'none';
@@ -558,9 +714,7 @@
       bgLayers.forEach(layer => {
         layer.x -= layer.speed * gameSpeed * deltaScale;
         const wrapPoint = window.innerWidth;
-        if (layer.x <= -wrapPoint) {
-          layer.x += wrapPoint;
-        }
+        if (layer.x <= -wrapPoint) layer.x += wrapPoint;
         layer.el.style.transform = `translateX(${layer.x}px)`;
       });
     }
@@ -578,61 +732,77 @@
         setPlayerVisual(true);
       }
 
-      const groundPx = pxFromVh(PLAYER_GROUND_PCT);
-      player.style.bottom = `${groundPx + playerY}px`;
+      player.style.bottom = `${groundPx() + playerY}px`;
     }
 
     function updateSpawns(deltaMs) {
-      obstacleTimer += deltaMs;
-      itemTimer += deltaMs;
+      enemyTimer += deltaMs;
+      patternTimer += deltaMs;
       difficultyTimer += deltaMs;
+      itemPatternCooldown -= deltaMs;
 
-      const obstacleInterval = Math.max(1050, 1900 - (gameSpeed - INITIAL_GAME_SPEED) * 80);
-      const itemInterval = Math.max(850, 1450 - (gameSpeed - INITIAL_GAME_SPEED) * 35);
+      const enemyInterval = Math.max(1750, 2600 - (gameSpeed - INITIAL_GAME_SPEED) * 180);
+      const patternInterval = 780;
 
-      if (obstacleTimer >= obstacleInterval) {
-        obstacleTimer = 0;
-        createObstacle();
+      if (enemyTimer >= enemyInterval) {
+        enemyTimer = 0;
+        spawnEnemyWave();
       }
 
-      if (itemTimer >= itemInterval) {
-        itemTimer = 0;
-        createItem();
+      if (patternTimer >= patternInterval) {
+        patternTimer = 0;
+        const roll = Math.random();
+        if (itemPatternCooldown <= 0 && roll < 0.68) {
+          spawnRubyPattern();
+          itemPatternCooldown = 1150;
+        } else if (roll < 0.9) {
+          spawnSingleRuby();
+        }
       }
 
-      if (difficultyTimer >= 6000) {
+      if (difficultyTimer >= 9000) {
         difficultyTimer = 0;
-        gameSpeed = Math.min(14, gameSpeed + 0.5);
+        gameSpeed = Math.min(MAX_GAME_SPEED, gameSpeed + 0.22);
+        updateHud();
       }
     }
 
-    function updateObjects(deltaScale) {
-      const playerRect = player.getBoundingClientRect();
-
-      activeObstacles = activeObstacles.filter(obj => {
-        obj.x -= gameSpeed * 7.8 * deltaScale;
+    function updateEnemies(deltaScale, playerRect) {
+      activeEnemies = activeEnemies.filter(obj => {
+        const speedFactor = obj.type === 'drone' ? 5.2 : 6.0;
+        obj.x -= gameSpeed * speedFactor * deltaScale;
         obj.el.style.left = `${obj.x}px`;
 
-        if (obj.x + obj.el.offsetWidth < -20) {
+        if (obj.type === 'drone') {
+          obj.bobPhase += obj.bobSpeed * deltaScale;
+          const y = obj.baseBottom + Math.sin(obj.bobPhase) * obj.bobRange;
+          obj.el.style.bottom = `${y}px`;
+        }
+
+        if (obj.x + obj.el.offsetWidth < -30) {
           obj.el.remove();
           return false;
         }
 
-        if (!invincible) {
-          const rect = obj.el.getBoundingClientRect();
-          if (rectsOverlap(playerRect, rect)) {
-            gameOver();
+        const rect = obj.el.getBoundingClientRect();
+        if (rectsOverlap(playerRect, rect)) {
+          if (invincible) {
+            obj.el.remove();
+            return false;
           }
+          gameOver();
         }
 
         return true;
       });
+    }
 
+    function updateItems(deltaScale, playerRect) {
       activeItems = activeItems.filter(obj => {
-        obj.x -= gameSpeed * 6.7 * deltaScale;
+        obj.x -= gameSpeed * 5.6 * deltaScale;
         obj.el.style.left = `${obj.x}px`;
 
-        if (obj.x + obj.el.offsetWidth < -20) {
+        if (obj.x + obj.el.offsetWidth < -30) {
           obj.el.remove();
           return false;
         }
@@ -641,12 +811,9 @@
         if (rectsOverlap(playerRect, rect)) {
           score += 1;
           collectedForStar += 1;
-          updateHud();
           obj.el.remove();
-
-          if (collectedForStar >= STAR_TARGET && !invincible) {
-            activateStar();
-          }
+          updateHud();
+          if (collectedForStar >= STAR_TARGET && !invincible) activateStar();
           return false;
         }
 
@@ -665,15 +832,17 @@
       updateBackground(deltaScale);
       updatePlayer(deltaScale);
       updateSpawns(deltaMs);
-      updateObjects(deltaScale);
 
-      if (running) {
-        requestAnimationFrame(loop);
-      }
+      const playerRect = player.getBoundingClientRect();
+      updateEnemies(deltaScale, playerRect);
+      updateItems(deltaScale, playerRect);
+
+      if (running) requestAnimationFrame(loop);
     }
 
     startButton.addEventListener('click', startGame);
     retryButton.addEventListener('click', startGame);
+
     document.addEventListener('touchstart', handleTap, { passive: false });
     document.addEventListener('click', (e) => {
       if (e.target.tagName === 'BUTTON') return;
@@ -681,13 +850,9 @@
     });
 
     window.addEventListener('resize', () => {
-      if (playerY === 0) {
-        player.style.bottom = `${PLAYER_GROUND_PCT}%`;
-      }
+      if (playerY === 0) player.style.bottom = `${PLAYER_GROUND_PCT}%`;
       bgLayers.forEach(layer => {
-        if (layer.x <= -window.innerWidth) {
-          layer.x = layer.x % window.innerWidth;
-        }
+        if (layer.x <= -window.innerWidth) layer.x = layer.x % window.innerWidth;
       });
     });
 

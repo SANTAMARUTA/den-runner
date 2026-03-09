@@ -367,6 +367,7 @@
       background: linear-gradient(to bottom, #ffdf58, #ffb300);
       color: #4c2c00;
       box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+      cursor: pointer;
     }
 
     .invincible {
@@ -438,6 +439,7 @@
   </div>
 
   <script>
+    const rotateScreen = document.getElementById('rotateScreen');
     const game = document.getElementById('game');
     const player = document.getElementById('player');
     const scoreEl = document.getElementById('score');
@@ -482,8 +484,28 @@
     let difficultyTimer = 0;
     let activeEnemies = [];
     let activeItems = [];
-    let touchLocked = false;
     let itemPatternCooldown = 0;
+
+    // --- 追加箇所：一時的なデバッグ表示用 ---
+    const debugEl = document.createElement('div');
+    debugEl.style.position = 'fixed';
+    debugEl.style.right = '8px';
+    debugEl.style.bottom = '8px';
+    debugEl.style.zIndex = '10000';
+    debugEl.style.fontSize = '12px';
+    debugEl.style.color = '#fff';
+    debugEl.style.background = 'rgba(0,0,0,0.6)';
+    debugEl.style.padding = '6px 8px';
+    debugEl.style.pointerEvents = 'none'; // タップの邪魔にならないように
+    document.body.appendChild(debugEl);
+
+    function updateDebug() {
+      debugEl.textContent =
+        `w:${window.innerWidth} h:${window.innerHeight} ` +
+        `land:${window.matchMedia("(orientation: landscape)").matches} ` +
+        `rotate:${rotateScreen.style.display} game:${game.style.display} running:${running}`;
+    }
+    // ------------------------------------
 
     function pxFromVh(vh) {
       return window.innerHeight * (vh / 100);
@@ -523,13 +545,14 @@
       setPlayerVisual(true);
     }
 
-    function handleTap(e) {
-      e.preventDefault();
-      if (touchLocked) return;
-      touchLocked = true;
-      setTimeout(() => touchLocked = false, 70);
+    // --- 修正箇所：ゲーム領域限定の入力処理 ---
+    function onGamePointerDown(e) {
+      if (!running) return;
+      if (e.target.closest('button')) return; // ボタン押下時はジャンプしない
       jump();
     }
+    game.addEventListener('pointerdown', onGamePointerDown);
+    // --------------------------------------
 
     function activateStar() {
       invincible = true;
@@ -662,6 +685,7 @@
       running = false;
       gameOverOverlay.style.display = 'flex';
       finalScoreEl.textContent = score;
+      updateDebug();
     }
 
     function resetGame() {
@@ -705,12 +729,14 @@
       gameOverOverlay.style.display = 'none';
       requestAnimationFrame(loop);
 
-      // フルスクリーン化
+      // フルスクリーン化（スタート成功後のみ実行）
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(err => console.log(err));
       } else if (document.documentElement.webkitRequestFullscreen) {
         document.documentElement.webkitRequestFullscreen();
       }
+      
+      updateDebug(); // デバッグ情報更新
     }
 
     function updateBackground(deltaScale) {
@@ -843,15 +869,21 @@
       if (running) requestAnimationFrame(loop);
     }
 
+    // --- 修正箇所：確実なボタン操作対応 ---
     startButton.addEventListener('click', startGame);
-    retryButton.addEventListener('click', startGame);
-
-    document.addEventListener('touchstart', handleTap, { passive: false });
-    document.addEventListener('click', (e) => {
-      if (e.target.tagName === 'BUTTON') return;
-      handleTap(e);
+    startButton.addEventListener('pointerup', (e) => {
+      e.preventDefault();
+      startGame();
     });
 
+    retryButton.addEventListener('click', startGame);
+    retryButton.addEventListener('pointerup', (e) => {
+      e.preventDefault();
+      startGame();
+    });
+    // ----------------------------------
+
+    // 背景やプレイヤー位置の調整用リサイズイベント
     window.addEventListener('resize', () => {
       if (playerY === 0) player.style.bottom = `${PLAYER_GROUND_PCT}%`;
       bgLayers.forEach(layer => {
@@ -859,27 +891,22 @@
       });
     });
 
-    // --- 追加箇所：画面の向き判定処理 ---
+    // --- 修正箇所：画面の向き判定処理 ---
     function checkOrientation() {
-      const isLandscape = window.matchMedia("(orientation: landscape)").matches || window.innerWidth > window.innerHeight;
+      const isLandscape =
+        window.matchMedia("(orientation: landscape)").matches ||
+        window.innerWidth > window.innerHeight;
 
-      if (isLandscape) {
-        document.getElementById("rotateScreen").style.display = "none";
-        document.getElementById("game").style.display = "block";
-      } else {
-        document.getElementById("rotateScreen").style.display = "flex";
-        document.getElementById("game").style.display = "none";
-      }
+      rotateScreen.style.display = isLandscape ? "none" : "flex";
+      game.style.display = isLandscape ? "block" : "none";
+      
+      updateDebug(); // デバッグ情報更新
     }
 
-    window.addEventListener("resize", () => {
-      setTimeout(checkOrientation, 120);
-    });
-    window.addEventListener("orientationchange", checkOrientation);
-    window.addEventListener("visibilitychange", checkOrientation);
-    window.addEventListener("load", () => {
-      setTimeout(checkOrientation, 200);
-    });
+    window.addEventListener("load", () => setTimeout(checkOrientation, 200));
+    window.addEventListener("resize", () => setTimeout(checkOrientation, 120));
+    window.addEventListener("orientationchange", () => setTimeout(checkOrientation, 200));
+    document.addEventListener("visibilitychange", checkOrientation);
 
     checkOrientation();
     // --------------------------------

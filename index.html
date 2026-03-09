@@ -892,22 +892,28 @@
       });
     });
 
-    // --- 修正箇所：画面の向き判定処理 ---
+    // --- 修正箇所：画面の向き判定処理（ポーリング方式） ---
     function checkOrientation() {
-      const isLandscape =
+      const landscape =
         window.matchMedia("(orientation: landscape)").matches ||
         window.innerWidth > window.innerHeight;
 
-      rotateScreen.style.display = isLandscape ? "none" : "flex";
-      game.style.display = isLandscape ? "block" : "none";
+      if (landscape) {
+        rotateScreen.style.display = "none";
+        game.style.display = "block";
+      } else {
+        rotateScreen.style.display = "flex";
+        game.style.display = "none";
+      }
       
       updateDebug(); // デバッグ情報更新
     }
 
     window.addEventListener("load", () => setTimeout(checkOrientation, 200));
-    window.addEventListener("resize", () => setTimeout(checkOrientation, 120));
-    window.addEventListener("orientationchange", () => setTimeout(checkOrientation, 200));
     document.addEventListener("visibilitychange", checkOrientation);
+
+    // iOS Safari等のイベント不発対策として、0.3秒ごとに強制チェック
+    setInterval(checkOrientation, 300);
 
     checkOrientation();
     // --------------------------------

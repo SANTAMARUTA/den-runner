@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Phase 4.0 (Enemy AI & BGM Update)</title>
+    <title>DENRUNNER - Phase 4.1 (Visual Polish)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -38,6 +38,11 @@
             position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
             background-color: transparent; background-size: contain; background-repeat: no-repeat; background-position: center;
             transform-origin: center center;
+            /* 描画安定化 (Amber指示 ①) */
+            will-change: transform;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            transform: translateZ(0);
         }
 
         .player-spin-anim { animation: spin-once 0.35s linear forwards; }
@@ -60,10 +65,10 @@
 
         .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
         
-        /* 敵クラスごとのスタイル (Amber指示 ⑥) */
-        .enemy-auto { width: 65px; height: 65px; z-index: 40; }
-        .enemy-satoru { width: 70px; height: 60px; z-index: 45; }
-        .enemy-arakatsu { width: 60px; height: 50px; z-index: 48; }
+        /* 敵キャラサイズ拡大 (Amber指示 ②) */
+        .enemy-auto { width: 90px; height: 90px; z-index: 40; }
+        .enemy-satoru { width: 95px; height: 82px; z-index: 45; }
+        .enemy-arakatsu { width: 85px; height: 70px; z-index: 48; }
 
         .hole { 
             width: 140px; height: 16%; bottom: 0; z-index: 5; 
@@ -123,13 +128,12 @@
 
 <script>
 /**
- * Denrunner: Final Stability Edition (v4.0)
+ * Denrunner: Final Stability Edition (v4.1)
  * 監修: アンバー / 実装: ヘルメス
  * 修正点：
- * 1. 走行GIFファイル名を「DENさん走行時.gif」に修正 (Amber指示 ①)
- * 2. 敵画像をオート/サトルさん/アラカツさんに差し替え (Amber指示 ②⑥)
- * 3. 各敵に固有挙動（ジャンプ、横揺れ）を追加 (Amber指示 ③④⑤)
- * 4. BGM「DEN RUNNER Main Loop.wav」の再生・ループ制御 (Amber指示 ⑦)
+ * 1. プレイヤー画像再セット防止による点滅感解消 (Amber指示 ①)
+ * 2. 敵キャラのサイズ拡大 (Amber指示 ②)
+ * 3. 敵タイプごとの当たり判定マージン最適化 (Amber指示 ②)
  */
 
 const config = {
@@ -152,7 +156,7 @@ const config = {
 };
 
 const assets = {
-    player: 'DENさん走行時.gif', // 「走行時」に修正 (Amber指示 ①)
+    player: 'DENさん走行時.gif',
     playerJump: 'DENさんジャンプ.png',
     playerMiss: 'DENさんクラッシュ.png',
     ruby: 'イザックるびぃ.png',
@@ -176,7 +180,8 @@ let feverTimeoutId = null;
 let spinTimeoutId = null;
 let missTimeoutId = null;
 let isLandscape = true;
-let gameBgm = null; // BGMオブジェクト用 (Amber指示 ⑦)
+let gameBgm = null; 
+let currentPlayerImageKey = null; // 現在表示中の画像キー (Amber指示 ①)
 
 let state = {
     running: false,
@@ -229,7 +234,6 @@ function init() {
     window.addEventListener('orientationchange', checkOrientation);
     checkOrientation();
 
-    // BGMの初期化 (Amber指示 ⑦)
     gameBgm = new Audio(assets.bgm);
     gameBgm.loop = true;
     gameBgm.volume = config.bgmVolume;
@@ -243,21 +247,16 @@ function init() {
     preloadAssets();
 }
 
-/**
- * プリロード管理 (Amber指示 ⑧)
- */
 function preloadAssets() {
     Object.keys(assetStatus).forEach(key => {
         const img = new Image();
         img.src = assets[key];
         img.onload = () => {
             assetStatus[key] = true;
-            console.log('loaded asset:', key, assets[key]);
             if (key === 'player') el.player.classList.remove('player-fallback');
         };
         img.onerror = () => {
             assetStatus[key] = false;
-            console.warn('failed asset:', key, assets[key]);
             if (key === 'player') el.player.classList.add('player-fallback');
         };
     });
@@ -266,7 +265,6 @@ function preloadAssets() {
 function startGame() {
     if (state.running) return;
 
-    // BGM再生開始 (Amber指示 ⑦)
     if (gameBgm) {
         gameBgm.currentTime = 0;
         gameBgm.volume = config.bgmVolume;
@@ -300,6 +298,7 @@ function startGame() {
     };
 
     el.player.classList.remove('player-spin-anim');
+    currentPlayerImageKey = null; // リセット
     setPlayerImage('player'); 
 
     el.overlay.style.display = 'none';
@@ -327,18 +326,27 @@ function handleInput() {
     setPlayerImage('playerJump');
 }
 
+/**
+ * プレイヤー画像設定 (Amber指示 ①)
+ * 二重セットを防止して点滅を解消
+ */
 function setPlayerImage(key) {
+    if (currentPlayerImageKey === key && el.player.style.backgroundImage !== '') return;
+
     if (assetStatus[key]) {
         el.player.classList.remove('player-fallback');
         el.player.style.backgroundImage = `url(${assets[key]})`;
+        currentPlayerImageKey = key;
     } 
     else if (key !== 'player' && assetStatus['player']) {
         el.player.classList.remove('player-fallback');
         el.player.style.backgroundImage = `url(${assets['player']})`;
+        currentPlayerImageKey = 'player';
     } 
     else {
         el.player.style.backgroundImage = ''; 
         el.player.classList.add('player-fallback');
+        currentPlayerImageKey = null;
     }
 }
 
@@ -374,12 +382,16 @@ function update(dt, ds, timestamp) {
     state.velocityY += config.gravity * ds;
     state.playerY -= state.velocityY * ds;
 
+    // 着地判定
     if (state.playerY <= 0) {
         if (!state.isAboveHole) {
             state.playerY = 0;
             state.velocityY = 0;
             state.jumps = 0;
-            if (!state.isMissed) setPlayerImage('player');
+            // 着地した瞬間だけ通常画像へ戻す (Amber指示 ①)
+            if (!state.isMissed && currentPlayerImageKey !== 'player') {
+                setPlayerImage('player');
+            }
         } else {
             if (state.playerY < -200) {
                 triggerMiss();
@@ -444,20 +456,17 @@ function createEntity(type) {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
         obj.style.backgroundImage = `url(${assets.ruby})`;
     } else if (type === 'obstacle') {
-        // オート (Amber指示 ③)
         obj.classList.add('enemy-auto');
         obj.style.backgroundImage = `url(${assets.enemyAuto})`;
         obj.style.bottom = config.groundHeight + '%';
         obj.dataset.yOffset = 0;
         obj.dataset.yVel = 0;
-        obj.dataset.jumpTimer = Math.random() * 2000; // ジャンプ間隔
+        obj.dataset.jumpTimer = Math.random() * 2000;
     } else if (type === 'stompEnemy') {
-        // サトルさん (Amber指示 ④)
         obj.classList.add('enemy-satoru');
         obj.style.backgroundImage = `url(${assets.enemySatoru})`;
         obj.style.bottom = config.groundHeight + '%';
     } else if (type === 'flyEnemy') {
-        // アラカツさん (Amber指示 ⑤)
         obj.classList.add('enemy-arakatsu');
         obj.style.backgroundImage = `url(${assets.enemyArakatsu})`;
         obj.style.bottom = (35 + Math.random() * 25) + '%';
@@ -472,7 +481,9 @@ function createEntity(type) {
 function updateEntities(ds, speed, timestamp) {
     const pRect = el.player.getBoundingClientRect();
     const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole');
-    const hitMargin = 14; 
+    
+    // 基本のヒットマージン。敵の拡大に伴い調整 (Amber指示 ②)
+    const baseHitMargin = 14; 
 
     state.isAboveHole = false;
 
@@ -481,34 +492,32 @@ function updateEntities(ds, speed, timestamp) {
         x -= (speed / 12) * ds;
         ent.dataset.x = x;
 
-        // --- 固有挙動の実装 ---
+        // 敵タイプごとの当たり判定調整 (Amber指示 ②)
+        let hitMargin = baseHitMargin;
+        if (ent.classList.contains('enemy-auto')) hitMargin = 22; // 見た目より内側
+        if (ent.classList.contains('enemy-satoru')) hitMargin = 22;
+        if (ent.classList.contains('enemy-arakatsu')) hitMargin = 28; // 飛行敵はさらに甘く
 
-        // サトルさん: 横揺れ (Amber指示 ④)
+        // 固有挙動
         let wobbleX = 0;
         if (ent.classList.contains('enemy-satoru')) {
             wobbleX = Math.sin(timestamp / 150) * 10;
         }
 
-        // オート: たまにジャンプ (Amber指示 ③)
         let autoY = 0;
         if (ent.classList.contains('enemy-auto') && !state.isMissed) {
             let yVel = parseFloat(ent.dataset.yVel || 0);
             let yOffset = parseFloat(ent.dataset.yOffset || 0);
             let jTimer = parseFloat(ent.dataset.jumpTimer || 0);
-
             jTimer -= 16.6 * ds;
             if (jTimer <= 0 && yOffset === 0) {
-                yVel = -12; // ジャンプ開始
+                yVel = -12; 
                 jTimer = 2000 + Math.random() * 3000;
             }
-
             if (yOffset > 0 || yVel !== 0) {
-                yVel += 0.6 * ds; // 重力
+                yVel += 0.6 * ds;
                 yOffset -= yVel * ds;
-                if (yOffset <= 0) {
-                    yOffset = 0;
-                    yVel = 0;
-                }
+                if (yOffset <= 0) { yOffset = 0; yVel = 0; }
             }
             ent.dataset.yVel = yVel;
             ent.dataset.yOffset = yOffset;
@@ -516,13 +525,11 @@ function updateEntities(ds, speed, timestamp) {
             autoY = yOffset;
         }
 
-        // アラカツさん: ふわふわ (Amber指示 ⑤)
         let bobY = 0;
         if (ent.classList.contains('enemy-arakatsu')) {
             bobY = Math.sin(timestamp / 200) * 15;
         }
 
-        // 座標反映 (座標更新順序の厳密化)
         ent.style.left = `calc(${x}% + ${wobbleX}px)`;
         ent.style.transform = `translateY(${-autoY + bobY}px)`;
 
@@ -557,7 +564,7 @@ function updateEntities(ds, speed, timestamp) {
                 if (isStompable) {
                     const isFalling = state.velocityY > 0;
                     const playerBottom = pRect.bottom - hitMargin;
-                    const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 25 : eRect.top + 10;
+                    const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 30 : eRect.top + 15;
 
                     if (isFalling && playerBottom < enemyTopLimit + 20) {
                         ent.remove();
@@ -578,20 +585,15 @@ function updateEntities(ds, speed, timestamp) {
 
 function triggerMiss() {
     if (state.isMissed) return;
-    
-    // BGMの音量を下げる (Amber指示 ⑦)
     if (gameBgm) gameBgm.volume = config.bgmVolume * 0.2;
-
     if (missTimeoutId) {
         clearTimeout(missTimeoutId);
         missTimeoutId = null;
     }
-
     state.isMissed = true;
     setPlayerImage('playerMiss');
     el.player.classList.remove('player-spin-anim');
     state.velocityY = -12; 
-    
     missTimeoutId = setTimeout(() => {
         showGameOver();
     }, 800);
@@ -601,7 +603,6 @@ function startFever() {
     if (feverTimeoutId) clearTimeout(feverTimeoutId);
     state.isFever = true;
     el.container.classList.add('fever-mode');
-    
     feverTimeoutId = setTimeout(() => {
         if (!state.running) return;
         state.isFever = false;
@@ -620,17 +621,13 @@ function draw(timestamp) {
 
 function showGameOver() {
     state.running = false;
-    
-    // BGM停止 (Amber指示 ⑦)
     if (gameBgm) gameBgm.pause();
-
     if (feverTimeoutId) clearTimeout(feverTimeoutId);
     if (spinTimeoutId) clearTimeout(spinTimeoutId);
     if (missTimeoutId) {
         clearTimeout(missTimeoutId);
         missTimeoutId = null;
     }
-    
     document.getElementById('msg-title').textContent = "GAME OVER";
     document.getElementById('msg-body').textContent = `SCORE: ${Math.floor(state.scoreRaw)}`;
     el.overlay.style.display = 'flex';

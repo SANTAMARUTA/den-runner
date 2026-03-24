@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Ultimate Stability Edition</title>
+    <title>DENRUNNER - Final Stability Edition</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -19,17 +19,16 @@
             user-select: none;
         }
 
-        /* 縦向き時の制御 (Amber指摘1を維持) */
+        /* 向き判定用UI */
         #rotate-notice {
             position: fixed; inset: 0; background: #111; color: #fff;
             display: none; flex-direction: column; align-items: center; justify-content: center;
             z-index: 10000; text-align: center; padding: 20px;
         }
-        #game-container { display: block; position: relative; width: 100vw; height: 100vh; background: var(--bg-sky); overflow: hidden; }
-
-        @media (orientation: portrait) { 
-            #rotate-notice { display: flex; } 
-            #game-container { display: none; } 
+        
+        #game-container { 
+            display: block; position: relative; width: 100vw; height: 100vh; 
+            background: var(--bg-sky); overflow: hidden; 
         }
 
         /* フィーバー演出 */
@@ -42,18 +41,25 @@
         #layer-mid { background: repeating-linear-gradient(90deg, transparent 0, transparent 200px, rgba(255,255,255,0.1) 200px, rgba(255,255,255,0.1) 400px); }
         #ground { position: absolute; bottom: 0; width: 200%; height: 15%; background: #5d4037; border-top: 4px solid #8d6e63; z-index: 10; }
 
-        /* 入力レイヤー (Amber指摘2を維持) */
+        /* 入力レイヤー */
         #input-layer { position: absolute; inset: 0; z-index: 1500; }
 
-        /* プレイヤー & オブジェクト */
+        /* プレイヤー設定 (Amber指摘3: 背景色を透過させるため削除) */
         #player {
             position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
-            background-color: #ffeb3b; border-radius: 10px; background-size: contain; background-repeat: no-repeat; background-position: center;
+            background-color: transparent; /* 基本は透明 */
+            background-size: contain; background-repeat: no-repeat; background-position: center;
         }
-        /* アイテムのフォールバック (Amber指摘4) */
+        
+        /* 画像が読み込めない時のフォールバック (Amber指摘3) */
+        .player-fallback {
+            background-color: #ffeb3b !important;
+            border-radius: 10px;
+        }
+
         .item { 
             position: absolute; width: 45px; height: 45px; z-index: 50; border-radius: 50%; 
-            background-color: #ff4081; /* 読み込めない時のピンク色 */
+            background-color: #ff4081; 
             box-shadow: 0 0 15px #fff, 0 0 5px #ff4081; 
             background-size: contain; background-repeat: no-repeat; background-position: center;
         }
@@ -76,6 +82,7 @@
             margin-top: 20px; pointer-events: auto; box-shadow: 0 4px 0 #c4a000;
         }
         button:active { transform: translateY(2px); box-shadow: 0 2px 0 #c4a000; }
+        button:disabled { background: #999; box-shadow: none; cursor: default; }
     </style>
 </head>
 <body>
@@ -107,13 +114,13 @@
 
 <script>
 /**
- * Denrunner: Ultimate Stability Edition (v3.2)
+ * Denrunner: Final Stability Edition (v3.3)
  * 監修: アンバー / 実装: ヘルメス
- * * 主な修正点:
- * 1. フィーバータイマーのクリア処理徹底 (Amber指摘1)
- * 2. スコアの内部小数保持 (Amber指摘2)
- * 3. 生成ロジックのwhileループ化 (Amber指摘3)
- * 4. アイテムの視認性確保 (Amber指摘4)
+ * * * 修正点：
+ * 1. JSによる厳密な向き判定 (isLandscape) 導入
+ * 2. プレイヤーの背景色透過バグの解消
+ * 3. 二重起動防止 (startGameガード)
+ * 4. 縦向き時のゲームループ停止 & 入力無効化
  */
 
 const config = {
@@ -126,15 +133,16 @@ const config = {
     itemSpawnInterval: 1200, 
     obsSpawnInterval: 1800,
     groundHeight: 15,
-    scoreRate: 0.1 // 距離に対するスコア倍率
+    scoreRate: 0.1
 };
 
-let feverTimeoutId = null; // フィーバー管理タイマー (Amber指摘1)
+let feverTimeoutId = null;
+let isLandscape = true; // 向き状態 (Amber指摘1)
 
 let state = {
     running: false,
     distance: 0,
-    scoreRaw: 0, // 内部用小数スコア (Amber指摘2)
+    scoreRaw: 0,
     speed: config.baseSpeed,
     isFever: false,
     playerY: 0,
@@ -146,6 +154,7 @@ let state = {
     obsTimer: 0
 };
 
+// 画像素材の一括管理 (Amber指摘4)
 const assets = {
     player: 'DENさん走行時.gif',
     playerJump: 'DENさんジャンプ.png',
@@ -162,23 +171,57 @@ const el = {
     overlay: document.getElementById('overlay'),
     startBtn: document.getElementById('start-btn'),
     layerMid: document.getElementById('layer-mid'),
-    layerBack: document.getElementById('layer-back')
+    layerBack: document.getElementById('layer-back'),
+    notice: document.getElementById('rotate-notice')
 };
 
+/**
+ * 向き判定 (Amber指摘1 & 2)
+ */
+function checkOrientation() {
+    isLandscape = window.innerWidth > window.innerHeight;
+    if (isLandscape) {
+        el.notice.style.display = 'none';
+        el.container.style.display = 'block';
+    } else {
+        el.notice.style.display = 'flex';
+        el.container.style.display = 'none';
+    }
+}
+
 function init() {
+    // 向き判定のイベント登録
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    checkOrientation();
+
     el.startBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         startGame();
     });
     el.input.addEventListener('pointerdown', handleInput);
     
-    // 画像プリロード
-    Object.values(assets).forEach(src => { const img = new Image(); img.src = src; });
-    setPlayerImage(assets.player);
+    // プレイヤー画像の読み込みチェック (Amber指摘3)
+    preloadPlayerAssets();
+}
+
+function preloadPlayerAssets() {
+    const img = new Image();
+    img.src = assets.player;
+    img.onload = () => {
+        el.player.classList.remove('player-fallback');
+        setPlayerImage(assets.player);
+    };
+    img.onerror = () => {
+        el.player.classList.add('player-fallback');
+    };
 }
 
 function startGame() {
-    // 前回のフィーバータイマーをクリア (Amber指摘1)
+    // 二重起動防止 (Amber指摘 早1)
+    if (state.running) return;
+    el.startBtn.disabled = true;
+
     if (feverTimeoutId) {
         clearTimeout(feverTimeoutId);
         feverTimeoutId = null;
@@ -201,26 +244,35 @@ function startGame() {
 
     el.overlay.style.display = 'none';
     el.container.classList.remove('fever-mode');
-    
-    // 既存オブジェクトのクリーンアップ
     document.querySelectorAll('.item, .obstacle').forEach(n => n.remove());
     
     requestAnimationFrame(gameLoop);
 }
 
 function handleInput() {
-    if (!state.running || state.jumps >= 2) return;
+    // 縦向き時、または実行中以外は入力を受け付けない (Amber指摘 早3)
+    if (!state.running || !isLandscape || state.jumps >= 2) return;
+    
     state.velocityY = config.jumpPower;
     state.jumps++;
     setPlayerImage(assets.playerJump);
 }
 
 function setPlayerImage(src) {
+    // 画像パスが正しい時のみ適用。無い時はフォールバック色が活きる
     el.player.style.backgroundImage = `url(${src})`;
 }
 
 function gameLoop(timestamp) {
     if (!state.running) return;
+
+    // 縦向き中は処理をスキップ (Amber指摘2)
+    if (!isLandscape) {
+        state.lastTime = timestamp; // 時間の経過だけリセットして進ませない
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+
     const deltaTime = Math.min(32, timestamp - state.lastTime); 
     state.lastTime = timestamp;
     const deltaScale = deltaTime / 16.66;
@@ -248,19 +300,18 @@ function update(dt, ds) {
         setPlayerImage(assets.player);
     }
 
-    // 距離とスコアの更新 (Amber指摘2: 小数で保持)
+    // スコア更新
     const moveDist = currentTotalSpeed * ds;
     state.distance += moveDist;
     state.scoreRaw += moveDist * config.scoreRate;
 
-    // 背景スクロール
-    const screenWidth = window.innerWidth;
-    const bgPos = (state.distance % screenWidth);
+    // 背景
+    const bgPos = (state.distance % window.innerWidth);
     el.layerMid.style.transform = `translateX(${-bgPos * 0.4}px)`;
     el.layerBack.style.transform = `translateX(${-bgPos * 0.15}px)`;
     el.ground.style.transform = `translateX(${-bgPos}px)`;
 
-    // タイマーベースの生成 (Amber指摘3: whileループ化)
+    // 生成
     state.itemTimer += dt;
     state.obsTimer += dt;
 
@@ -268,12 +319,8 @@ function update(dt, ds) {
         createEntity('item');
         state.itemTimer -= config.itemSpawnInterval;
     }
-    
-    // フィーバー中は障害物を出さない
     while (state.obsTimer >= config.obsSpawnInterval) {
-        if (!state.isFever) {
-            createEntity('obstacle');
-        }
+        if (!state.isFever) createEntity('obstacle');
         state.obsTimer -= config.obsSpawnInterval;
     }
 
@@ -283,11 +330,10 @@ function update(dt, ds) {
 function createEntity(type) {
     const obj = document.createElement('div');
     obj.className = type;
-    obj.dataset.x = 110; // 画面右端外 (110%)
+    obj.dataset.x = 110;
     
     if (type === 'item') {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
-        // アイテム画像の適用。失敗してもCSSの背景色が残る (Amber指摘4)
         obj.style.backgroundImage = `url(${assets.ruby})`;
     } else {
         obj.style.bottom = config.groundHeight + '%';
@@ -297,7 +343,7 @@ function createEntity(type) {
 
 function updateEntities(ds, speed) {
     const pRect = el.player.getBoundingClientRect();
-    const hitMargin = 14; // 当たり判定の余裕
+    const hitMargin = 14; 
 
     const entities = document.querySelectorAll('.item, .obstacle');
     for (const ent of entities) {
@@ -308,7 +354,6 @@ function updateEntities(ds, speed) {
 
         const eRect = ent.getBoundingClientRect();
 
-        // 衝突判定
         if (pRect.left + hitMargin < eRect.right &&
             pRect.right - hitMargin > eRect.left &&
             pRect.top + hitMargin < eRect.bottom &&
@@ -316,32 +361,29 @@ function updateEntities(ds, speed) {
             
             if (ent.classList.contains('item')) {
                 ent.remove();
-                state.scoreRaw += 500; // アイテム加点も小数スコアへ統合 (Amber指摘2)
+                state.scoreRaw += 500;
                 if (!state.isFever) {
                     state.feverGauge = Math.min(100, state.feverGauge + 10);
                     if (state.feverGauge >= 100) startFever();
                 }
             } else if (!state.isFever) {
                 gameOver();
-                return; // ループ中断
+                return;
             }
         }
-        
-        // 画面外に出たら削除
-        if (x < -20) {
-            ent.remove();
-        }
+        if (x < -20) ent.remove();
     }
 }
 
 function startFever() {
-    // 既存のフィーバー終了タイマーがあればクリア (Amber指摘1)
     if (feverTimeoutId) clearTimeout(feverTimeoutId);
-
     state.isFever = true;
     el.container.classList.add('fever-mode');
     
     feverTimeoutId = setTimeout(() => {
+        // フィーバー終了時の最終保険 (Amber指摘 早2)
+        if (!state.running) return;
+        
         state.isFever = false;
         state.feverGauge = 0;
         el.container.classList.remove('fever-mode');
@@ -350,19 +392,14 @@ function startFever() {
 }
 
 function draw() {
-    // プレイヤーの高さ反映
     el.player.style.bottom = (config.groundHeight + (state.playerY / window.innerHeight * 100)) + '%';
-    
-    // スコアの表示更新 (Amber指摘2: 表示時のみ整数化)
     el.score.textContent = Math.floor(state.scoreRaw);
-    
-    // フィーバーバー
     el.feverBar.style.width = state.feverGauge + '%';
 }
 
 function gameOver() {
     state.running = false;
-    // ゲームオーバー時もタイマーを整理
+    el.startBtn.disabled = false; // ボタンを再度有効化
     if (feverTimeoutId) {
         clearTimeout(feverTimeoutId);
         feverTimeoutId = null;
@@ -373,6 +410,7 @@ function gameOver() {
     el.overlay.style.display = 'flex';
 }
 
+// 実行
 init();
 </script>
 </body>

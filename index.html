@@ -1,707 +1,379 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Cache-Control" content="no-store" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>DEN RUNNER</title>
-  <style>
-    * { box-sizing: border-box; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DENRUNNER - Ultimate Stability Edition</title>
+    <style>
+        :root {
+            --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
+            --fever-bg: linear-gradient(45deg, #ff00ff, #ff8c00, #4b0082);
+        }
 
-    html, body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #78c8ff;
-      font-family: Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
-      touch-action: manipulation;
-      -webkit-user-select: none;
-      user-select: none;
-    }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { 
+            width: 100%; height: 100%; overflow: hidden; 
+            background: #000; font-family: 'Arial', sans-serif;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
 
-    /* body の position: fixed; inset: 0; を削除 (Safariバグ対策) */
+        /* 縦向き時の制御 (Amber指摘1を維持) */
+        #rotate-notice {
+            position: fixed; inset: 0; background: #111; color: #fff;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10000; text-align: center; padding: 20px;
+        }
+        #game-container { display: block; position: relative; width: 100vw; height: 100vh; background: var(--bg-sky); overflow: hidden; }
 
-    #rotateNotice {
-      position: fixed;
-      inset: 0;
-      visibility: hidden;     /* CSSでの制御に変更 */
-      pointer-events: none;   /* CSSでの制御に変更 */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 24px;
-      background: #111;
-      color: #fff;
-      z-index: 9999;
-      font-size: 20px;
-      line-height: 1.7;
-    }
+        @media (orientation: portrait) { 
+            #rotate-notice { display: flex; } 
+            #game-container { display: none; } 
+        }
 
-    #game {
-      visibility: visible;    /* CSSでの制御に変更 */
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      background:
-        linear-gradient(to bottom, #78c8ff 0%, #9addff 45%, #dff7ff 100%);
-    }
+        /* フィーバー演出 */
+        #game-container.fever-mode { background: var(--fever-bg); animation: fever-flash 0.5s infinite alternate; }
+        @keyframes fever-flash { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(90deg); } }
 
-    .bg-layer {
-      position: absolute;
-      left: 0;
-      width: 200%;
-      pointer-events: none;
-      will-change: transform;
-    }
+        /* 背景レイヤー */
+        .layer { position: absolute; top: 0; left: 0; width: 200%; height: 100%; pointer-events: none; }
+        #layer-back { background: radial-gradient(circle at 20% 20%, #fff 0%, transparent 10%); opacity: 0.3; }
+        #layer-mid { background: repeating-linear-gradient(90deg, transparent 0, transparent 200px, rgba(255,255,255,0.1) 200px, rgba(255,255,255,0.1) 400px); }
+        #ground { position: absolute; bottom: 0; width: 200%; height: 15%; background: #5d4037; border-top: 4px solid #8d6e63; z-index: 10; }
 
-    #skyGlow {
-      top: 0;
-      height: 100%;
-      background:
-        radial-gradient(circle at 15% 15%, rgba(255,255,255,0.55) 0 8%, transparent 9%),
-        radial-gradient(circle at 75% 12%, rgba(255,255,255,0.35) 0 6%, transparent 7%),
-        radial-gradient(circle at 45% 22%, rgba(255,255,255,0.18) 0 10%, transparent 11%);
-      opacity: 0.9;
-    }
+        /* 入力レイヤー (Amber指摘2を維持) */
+        #input-layer { position: absolute; inset: 0; z-index: 1500; }
 
-    #cloudsFar {
-      top: 8%;
-      height: 22%;
-      background:
-        radial-gradient(circle at 8% 50%, rgba(255,255,255,0.95) 0 12%, transparent 13%),
-        radial-gradient(circle at 14% 40%, rgba(255,255,255,0.95) 0 10%, transparent 11%),
-        radial-gradient(circle at 20% 52%, rgba(255,255,255,0.95) 0 12%, transparent 13%),
-        radial-gradient(circle at 35% 60%, rgba(255,255,255,0.9) 0 11%, transparent 12%),
-        radial-gradient(circle at 41% 48%, rgba(255,255,255,0.9) 0 9%, transparent 10%),
-        radial-gradient(circle at 47% 60%, rgba(255,255,255,0.9) 0 11%, transparent 12%),
-        radial-gradient(circle at 60% 42%, rgba(255,255,255,0.92) 0 10%, transparent 11%),
-        radial-gradient(circle at 66% 52%, rgba(255,255,255,0.92) 0 12%, transparent 13%),
-        radial-gradient(circle at 72% 42%, rgba(255,255,255,0.92) 0 10%, transparent 11%),
-        radial-gradient(circle at 86% 58%, rgba(255,255,255,0.9) 0 11%, transparent 12%),
-        radial-gradient(circle at 92% 46%, rgba(255,255,255,0.9) 0 9%, transparent 10%),
-        radial-gradient(circle at 98% 58%, rgba(255,255,255,0.9) 0 11%, transparent 12%);
-      opacity: 0.55;
-    }
+        /* プレイヤー & オブジェクト */
+        #player {
+            position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
+            background-color: #ffeb3b; border-radius: 10px; background-size: contain; background-repeat: no-repeat; background-position: center;
+        }
+        /* アイテムのフォールバック (Amber指摘4) */
+        .item { 
+            position: absolute; width: 45px; height: 45px; z-index: 50; border-radius: 50%; 
+            background-color: #ff4081; /* 読み込めない時のピンク色 */
+            box-shadow: 0 0 15px #fff, 0 0 5px #ff4081; 
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+        }
+        .obstacle { position: absolute; width: 55px; height: 65px; z-index: 40; background: #333; border-radius: 5px; border: 2px solid #555; }
 
-    #mountainsFar {
-      bottom: 18%;
-      height: 24%;
-      background:
-        linear-gradient(135deg, transparent 18%, #86c68b 19% 44%, transparent 45%) 0 100% / 24% 100% repeat-x,
-        linear-gradient(225deg, transparent 18%, #7bbd81 19% 44%, transparent 45%) 12% 100% / 24% 100% repeat-x;
-      opacity: 0.9;
-    }
+        /* UI */
+        #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 2000; color: #fff; text-shadow: 2px 2px 4px #000; pointer-events: none; }
+        .stat-box { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
+        #fever-bar-container { width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; }
+        #fever-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff0, #f0f); transition: width 0.1s linear; }
 
-    #mountainsNear {
-      bottom: 13%;
-      height: 28%;
-      background:
-        linear-gradient(135deg, transparent 18%, #59a86a 19% 48%, transparent 49%) 0 100% / 20% 100% repeat-x,
-        linear-gradient(225deg, transparent 18%, #4f9b60 19% 48%, transparent 49%) 10% 100% / 20% 100% repeat-x;
-      opacity: 0.95;
-    }
-
-    #trees {
-      bottom: 13%;
-      height: 16%;
-      background:
-        radial-gradient(circle at 4% 75%, #2d7f43 0 5%, transparent 5.2%),
-        linear-gradient(#5b3a22, #5b3a22) 4% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 10% 78%, #256d38 0 4.5%, transparent 4.7%),
-        linear-gradient(#5b3a22, #5b3a22) 10% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 18% 76%, #2d7f43 0 5.5%, transparent 5.7%),
-        linear-gradient(#5b3a22, #5b3a22) 18% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 26% 77%, #256d38 0 4.6%, transparent 4.8%),
-        linear-gradient(#5b3a22, #5b3a22) 26% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 34% 75%, #2d7f43 0 5.2%, transparent 5.4%),
-        linear-gradient(#5b3a22, #5b3a22) 34% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 44% 77%, #256d38 0 4.8%, transparent 5%),
-        linear-gradient(#5b3a22, #5b3a22) 44% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 54% 75%, #2d7f43 0 5.3%, transparent 5.5%),
-        linear-gradient(#5b3a22, #5b3a22) 54% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 64% 78%, #256d38 0 4.6%, transparent 4.8%),
-        linear-gradient(#5b3a22, #5b3a22) 64% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 74% 76%, #2d7f43 0 5.4%, transparent 5.6%),
-        linear-gradient(#5b3a22, #5b3a22) 74% 100% / 0.7% 30% no-repeat,
-        radial-gradient(circle at 84% 77%, #256d38 0 4.7%, transparent 4.9%),
-        linear-gradient(#5b3a22, #5b3a22) 84% 100% / 0.6% 28% no-repeat,
-        radial-gradient(circle at 94% 75%, #2d7f43 0 5.3%, transparent 5.5%),
-        linear-gradient(#5b3a22, #5b3a22) 94% 100% / 0.7% 30% no-repeat;
-      opacity: 0.9;
-    }
-
-    #ground {
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      width: 200%;
-      height: 13%;
-      background:
-        linear-gradient(to bottom, #8d6439 0 8%, #d39f63 8% 100%),
-        repeating-linear-gradient(
-          to right,
-          rgba(255,255,255,0.08) 0 18px,
-          rgba(0,0,0,0.06) 18px 36px
-        );
-      border-top: 4px solid #6d4724;
-      box-shadow: inset 0 8px 0 rgba(255,255,255,0.16);
-      will-change: transform;
-    }
-
-    #grass {
-      position: absolute;
-      left: 0;
-      bottom: 13%;
-      width: 200%;
-      height: 3%;
-      background:
-        repeating-linear-gradient(
-          to right,
-          #42b649 0 12px,
-          #55c95e 12px 24px,
-          #3ca942 24px 36px
-        );
-      border-top: 2px solid #7ee07e;
-      will-change: transform;
-    }
-
-    #player {
-      position: absolute;
-      left: 13vw;
-      bottom: 13%;
-      width: min(20vw, 180px);
-      z-index: 30;
-      transform-origin: center bottom;
-      will-change: transform, bottom;
-    }
-
-    .item {
-      position: absolute;
-      width: min(12vw, 110px);
-      z-index: 25;
-      will-change: transform, left;
-      filter: drop-shadow(0 0 8px rgba(255, 20, 147, 0.35));
-    }
-
-    .obstacle {
-      position: absolute;
-      width: min(7vw, 70px);
-      height: min(9vw, 90px);
-      bottom: 13%;
-      z-index: 24;
-      border-radius: 12px 12px 6px 6px;
-      background: linear-gradient(to bottom, #6c4d32, #4d2f16);
-      border: 3px solid rgba(255,255,255,0.15);
-      box-shadow: inset 0 4px 0 rgba(255,255,255,0.14);
-    }
-
-    .obstacle::before,
-    .obstacle::after {
-      content: "";
-      position: absolute;
-      top: 10%;
-      width: 18%;
-      height: 34%;
-      background: linear-gradient(to bottom, #f7f7f7, #d7d7d7);
-      border-radius: 5px;
-    }
-
-    .obstacle::before { left: 20%; }
-    .obstacle::after  { right: 20%; }
-
-    #hud {
-      position: absolute;
-      top: 14px;
-      left: 14px;
-      z-index: 50;
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .panel {
-      min-width: 110px;
-      padding: 10px 14px;
-      border-radius: 14px;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.28);
-      backdrop-filter: blur(4px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.18);
-      text-shadow: 1px 1px 3px rgba(0,0,0,0.35);
-    }
-
-    .label {
-      display: block;
-      font-size: 12px;
-      opacity: 0.9;
-      margin-bottom: 2px;
-    }
-
-    .value {
-      font-size: 26px;
-      font-weight: 700;
-      line-height: 1;
-    }
-
-    #message {
-      position: absolute;
-      top: 18%;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 70;
-      font-size: clamp(24px, 4vw, 44px);
-      color: #fff45a;
-      font-weight: 900;
-      text-shadow: 0 0 10px rgba(255,230,0,0.8), 0 3px 10px rgba(0,0,0,0.4);
-      opacity: 0;
-      transition: opacity 0.2s ease;
-      pointer-events: none;
-      white-space: nowrap;
-    }
-
-    #startOverlay,
-    #gameOverOverlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 80;
-      background: rgba(0,0,0,0.35);
-      padding: 20px;
-    }
-
-    #gameOverOverlay { display: none; }
-
-    .card {
-      width: min(88vw, 560px);
-      padding: 24px 20px;
-      border-radius: 24px;
-      background: rgba(255,255,255,0.15);
-      color: #fff;
-      text-align: center;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.28);
-    }
-
-    .card h1, .card h2 {
-      margin: 0 0 12px;
-      font-size: clamp(28px, 5vw, 50px);
-      line-height: 1.1;
-    }
-
-    .card p {
-      margin: 8px 0;
-      font-size: clamp(14px, 2.2vw, 20px);
-      line-height: 1.6;
-    }
-
-    .highlight {
-      color: #fff45a;
-      font-weight: 800;
-    }
-
-    button {
-      margin-top: 16px;
-      padding: 14px 22px;
-      border: 0;
-      border-radius: 999px;
-      font-size: clamp(16px, 2.6vw, 24px);
-      font-weight: 700;
-      background: linear-gradient(to bottom, #ffdf58, #ffb300);
-      color: #4c2c00;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
-      cursor: pointer;
-    }
-
-    .invincible {
-      animation: starBlink 0.16s linear infinite alternate;
-      filter: drop-shadow(0 0 8px #fff176) drop-shadow(0 0 18px #ffd54f);
-    }
-
-    @keyframes starBlink {
-      from { opacity: 1; }
-      to { opacity: 0.58; }
-    }
-
-    /* 修正箇所：CSSでの画面切替制御 */
-    @media (orientation: portrait) {
-      #game {
-        visibility: hidden;
-        pointer-events: none;
-        display: block;
-      }
-      #rotateNotice {
-        visibility: visible;
-        pointer-events: auto;
-        display: flex;
-      }
-    }
-  </style>
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.7);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 3000; color: #fff; text-align: center; padding: 20px;
+        }
+        button {
+            padding: 15px 45px; font-size: 24px; cursor: pointer; border: none;
+            border-radius: 50px; background: #ffeb3b; color: #333; font-weight: bold;
+            margin-top: 20px; pointer-events: auto; box-shadow: 0 4px 0 #c4a000;
+        }
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #c4a000; }
+    </style>
 </head>
 <body>
-  <div id="rotateNotice">スマホを横向きにして遊んでください</div>
 
-  <div id="game">
-    <div id="skyGlow" class="bg-layer"></div>
-    <div id="cloudsFar" class="bg-layer"></div>
-    <div id="mountainsFar" class="bg-layer"></div>
-    <div id="mountainsNear" class="bg-layer"></div>
-    <div id="trees" class="bg-layer"></div>
-    <div id="grass"></div>
-    <div id="ground"></div>
+    <div id="rotate-notice">
+        <h1>スマホを横向きにしてください</h1>
+        <p style="margin-top:10px;">DENRUNNERは横画面専用です</p>
+    </div>
 
-    <div id="hud">
-      <div class="panel">
-        <span class="label">スコア</span>
-        <span id="score" class="value">0</span>
-      </div>
-      <div class="panel">
-        <span class="label">スターまで</span>
-        <span id="starCounter" class="value">20</span>
-      </div>
-    </div>
+    <div id="game-container">
+        <div id="layer-back" class="layer"></div>
+        <div id="layer-mid" class="layer"></div>
+        <div id="ground"></div>
+        <div id="input-layer"></div>
 
-    <div id="message"></div>
+        <div id="player"></div>
 
-    <img id="player" src="DENさん走行時.gif" alt="DENさん">
+        <div id="ui-layer">
+            <div class="stat-box">SCORE: <span id="score-val">0</span></div>
+            <div id="fever-bar-container"><div id="fever-bar"></div></div>
+        </div>
 
-    <div id="startOverlay">
-      <div class="card">
-        <h1>DEN RUNNER</h1>
-        <p>タップでジャンプ、空中でもう一度タップで<span class="highlight">2段ジャンプ</span></p>
-        <p><span class="highlight">イザックるびぃ</span>を集めてスコア獲得</p>
-        <p>20個集めると数秒間<span class="highlight">スター無敵</span></p>
-        <button id="startButton">ゲームスタート</button>
-      </div>
-    </div>
+        <div id="overlay">
+            <h1 id="msg-title">DENRUNNER</h1>
+            <p id="msg-body">タップでジャンプ！2段ジャンプ対応<br>イザックるびぃを集めてフィーバー！</p>
+            <button id="start-btn">GAME START</button>
+        </div>
+    </div>
 
-    <div id="gameOverOverlay">
-      <div class="card">
-        <h2>GAME OVER</h2>
-        <p>最終スコア：<span id="finalScore" class="highlight">0</span></p>
-        <button id="retryButton">もう一回あそぶ</button>
-      </div>
-    </div>
-  </div>
+<script>
+/**
+ * Denrunner: Ultimate Stability Edition (v3.2)
+ * 監修: アンバー / 実装: ヘルメス
+ * * 主な修正点:
+ * 1. フィーバータイマーのクリア処理徹底 (Amber指摘1)
+ * 2. スコアの内部小数保持 (Amber指摘2)
+ * 3. 生成ロジックのwhileループ化 (Amber指摘3)
+ * 4. アイテムの視認性確保 (Amber指摘4)
+ */
 
-  <script>
-    const game = document.getElementById('game');
-    const player = document.getElementById('player');
-    const scoreEl = document.getElementById('score');
-    const starCounterEl = document.getElementById('starCounter');
-    const startOverlay = document.getElementById('startOverlay');
-    const gameOverOverlay = document.getElementById('gameOverOverlay');
-    const finalScoreEl = document.getElementById('finalScore');
-    const startButton = document.getElementById('startButton');
-    const retryButton = document.getElementById('retryButton');
-    const messageEl = document.getElementById('message');
+const config = {
+    gravity: 0.8,
+    jumpPower: -16,
+    baseSpeed: 7,
+    maxSpeed: 18,
+    feverBonus: 8,
+    feverDuration: 5000,
+    itemSpawnInterval: 1200, 
+    obsSpawnInterval: 1800,
+    groundHeight: 15,
+    scoreRate: 0.1 // 距離に対するスコア倍率
+};
 
-    const bgLayers = [
-      { el: document.getElementById('cloudsFar'), speed: 0.18, x: 0 },
-      { el: document.getElementById('mountainsFar'), speed: 0.45, x: 0 },
-      { el: document.getElementById('mountainsNear'), speed: 0.9, x: 0 },
-      { el: document.getElementById('trees'), speed: 1.5, x: 0 },
-      { el: document.getElementById('grass'), speed: 2.8, x: 0 },
-      { el: document.getElementById('ground'), speed: 4.6, x: 0 }
-    ];
+let feverTimeoutId = null; // フィーバー管理タイマー (Amber指摘1)
 
-    const PLAYER_GROUND_PCT = 13;
-    const INITIAL_GAME_SPEED = 6.5;
-    const STAR_TARGET = 20;
-    const STAR_DURATION = 5000;
-    const RUBY_MIN_BOTTOM = 22;
-    const RUBY_MAX_BOTTOM = 55;
+let state = {
+    running: false,
+    distance: 0,
+    scoreRaw: 0, // 内部用小数スコア (Amber指摘2)
+    speed: config.baseSpeed,
+    isFever: false,
+    playerY: 0,
+    velocityY: 0,
+    jumps: 0,
+    feverGauge: 0,
+    lastTime: 0,
+    itemTimer: 0,
+    obsTimer: 0
+};
 
-    let score = 0;
-    let collectedForStar = 0;
-    let jumpCount = 0;
-    let velocityY = 0;
-    let playerY = 0;
-    let gravity = 1.15;
-    let jumpPower = 22;
-    let gameSpeed = INITIAL_GAME_SPEED;
-    let invincible = false;
-    let running = false;
-    let gameStarted = false;
-    let lastTime = 0;
-    let obstacleTimer = 0;
-    let itemTimer = 0;
-    let difficultyTimer = 0;
-    let activeObstacles = [];
-    let activeItems = [];
+const assets = {
+    player: 'DENさん走行時.gif',
+    playerJump: 'DENさんジャンプ.png',
+    ruby: 'イザックるびぃ.png'
+};
 
-    function pxFromVh(vh) {
-      return window.innerHeight * (vh / 100);
-    }
+const el = {
+    container: document.getElementById('game-container'),
+    input: document.getElementById('input-layer'),
+    player: document.getElementById('player'),
+    ground: document.getElementById('ground'),
+    score: document.getElementById('score-val'),
+    feverBar: document.getElementById('fever-bar'),
+    overlay: document.getElementById('overlay'),
+    startBtn: document.getElementById('start-btn'),
+    layerMid: document.getElementById('layer-mid'),
+    layerBack: document.getElementById('layer-back')
+};
 
-    function setPlayerVisual(isJumping) {
-      const target = isJumping ? 'DENさんジャンプ.png' : 'DENさん走行時.gif';
-      if (!player.src.endsWith(encodeURI(target)) && !player.src.endsWith(target)) {
-        player.src = target;
-      }
-    }
+function init() {
+    el.startBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startGame();
+    });
+    el.input.addEventListener('pointerdown', handleInput);
+    
+    // 画像プリロード
+    Object.values(assets).forEach(src => { const img = new Image(); img.src = src; });
+    setPlayerImage(assets.player);
+}
 
-    function updateHud() {
-      scoreEl.textContent = score;
-      const remain = invincible ? '★' : Math.max(0, STAR_TARGET - collectedForStar);
-      starCounterEl.textContent = remain;
-    }
+function startGame() {
+    // 前回のフィーバータイマーをクリア (Amber指摘1)
+    if (feverTimeoutId) {
+        clearTimeout(feverTimeoutId);
+        feverTimeoutId = null;
+    }
 
-    function showMessage(text, duration = 1200) {
-      messageEl.textContent = text;
-      messageEl.style.opacity = '1';
-      clearTimeout(showMessage.timer);
-      showMessage.timer = setTimeout(() => {
-        messageEl.style.opacity = '0';
-      }, duration);
-    }
+    state = {
+        running: true,
+        distance: 0,
+        scoreRaw: 0,
+        speed: config.baseSpeed,
+        isFever: false,
+        playerY: 0,
+        velocityY: 0,
+        jumps: 0,
+        feverGauge: 0,
+        lastTime: performance.now(),
+        itemTimer: 0,
+        obsTimer: 0
+    };
 
-    function jump() {
-      if (!running) return;
-      if (jumpCount >= 2) return;
+    el.overlay.style.display = 'none';
+    el.container.classList.remove('fever-mode');
+    
+    // 既存オブジェクトのクリーンアップ
+    document.querySelectorAll('.item, .obstacle').forEach(n => n.remove());
+    
+    requestAnimationFrame(gameLoop);
+}
 
-      jumpCount += 1;
-      velocityY = jumpCount === 1 ? jumpPower : jumpPower * 0.92;
-      setPlayerVisual(true);
-    }
+function handleInput() {
+    if (!state.running || state.jumps >= 2) return;
+    state.velocityY = config.jumpPower;
+    state.jumps++;
+    setPlayerImage(assets.playerJump);
+}
 
-    function activateStar() {
-      invincible = true;
-      collectedForStar = 0;
-      player.classList.add('invincible');
-      updateHud();
-      showMessage('スター無敵！');
+function setPlayerImage(src) {
+    el.player.style.backgroundImage = `url(${src})`;
+}
 
-      clearTimeout(activateStar.timer);
-      activateStar.timer = setTimeout(() => {
-        invincible = false;
-        player.classList.remove('invincible');
-        updateHud();
-      }, STAR_DURATION);
-    }
+function gameLoop(timestamp) {
+    if (!state.running) return;
+    const deltaTime = Math.min(32, timestamp - state.lastTime); 
+    state.lastTime = timestamp;
+    const deltaScale = deltaTime / 16.66;
 
-    function createObstacle() {
-      const obs = document.createElement('div');
-      obs.className = 'obstacle';
-      obs.style.left = `${window.innerWidth + 20}px`;
-      game.appendChild(obs);
-      activeObstacles.push({ el: obs, x: window.innerWidth + 20, passed: false });
-    }
+    update(deltaTime, deltaScale);
+    draw();
+    requestAnimationFrame(gameLoop);
+}
 
-    function createItem() {
-      const item = document.createElement('img');
-      item.className = 'item';
-      item.src = 'イザックるびぃ.png';
-      item.alt = 'イザックるびぃ';
-      const bottomPct = RUBY_MIN_BOTTOM + Math.random() * (RUBY_MAX_BOTTOM - RUBY_MIN_BOTTOM);
-      item.style.left = `${window.innerWidth + 20}px`;
-      item.style.bottom = `${bottomPct}%`;
-      game.appendChild(item);
-      activeItems.push({ el: item, x: window.innerWidth + 20, bottomPct });
-    }
+function update(dt, ds) {
+    // 速度計算
+    if (!state.isFever) {
+        state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
+    }
+    const currentTotalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
 
-    function rectsOverlap(a, b) {
-      return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-    }
+    // プレイヤー物理
+    state.velocityY += config.gravity * ds;
+    state.playerY -= state.velocityY * ds;
 
-    function gameOver() {
-      running = false;
-      gameOverOverlay.style.display = 'flex';
-      finalScoreEl.textContent = score;
-    }
+    if (state.playerY <= 0) {
+        state.playerY = 0;
+        state.velocityY = 0;
+        state.jumps = 0;
+        setPlayerImage(assets.player);
+    }
 
-    function resetGame() {
-      score = 0;
-      collectedForStar = 0;
-      jumpCount = 0;
-      velocityY = 0;
-      playerY = 0;
-      gameSpeed = INITIAL_GAME_SPEED;
-      invincible = false;
-      running = false;
-      lastTime = 0;
-      obstacleTimer = 0;
-      itemTimer = 0;
-      difficultyTimer = 0;
-      messageEl.style.opacity = '0';
+    // 距離とスコアの更新 (Amber指摘2: 小数で保持)
+    const moveDist = currentTotalSpeed * ds;
+    state.distance += moveDist;
+    state.scoreRaw += moveDist * config.scoreRate;
 
-      player.classList.remove('invincible');
-      player.style.bottom = `${PLAYER_GROUND_PCT}%`;
-      setPlayerVisual(false);
+    // 背景スクロール
+    const screenWidth = window.innerWidth;
+    const bgPos = (state.distance % screenWidth);
+    el.layerMid.style.transform = `translateX(${-bgPos * 0.4}px)`;
+    el.layerBack.style.transform = `translateX(${-bgPos * 0.15}px)`;
+    el.ground.style.transform = `translateX(${-bgPos}px)`;
 
-      activeObstacles.forEach(obj => obj.el.remove());
-      activeItems.forEach(obj => obj.el.remove());
-      activeObstacles = [];
-      activeItems = [];
+    // タイマーベースの生成 (Amber指摘3: whileループ化)
+    state.itemTimer += dt;
+    state.obsTimer += dt;
 
-      bgLayers.forEach(layer => {
-        layer.x = 0;
-        layer.el.style.transform = 'translateX(0px)';
-      });
+    while (state.itemTimer >= config.itemSpawnInterval) {
+        createEntity('item');
+        state.itemTimer -= config.itemSpawnInterval;
+    }
+    
+    // フィーバー中は障害物を出さない
+    while (state.obsTimer >= config.obsSpawnInterval) {
+        if (!state.isFever) {
+            createEntity('obstacle');
+        }
+        state.obsTimer -= config.obsSpawnInterval;
+    }
 
-      updateHud();
-    }
+    updateEntities(ds, currentTotalSpeed);
+}
 
-    function startGame() {
-      resetGame();
-      gameStarted = true;
-      running = true;
-      startOverlay.style.display = 'none';
-      gameOverOverlay.style.display = 'none';
-      requestAnimationFrame(loop);
-    }
+function createEntity(type) {
+    const obj = document.createElement('div');
+    obj.className = type;
+    obj.dataset.x = 110; // 画面右端外 (110%)
+    
+    if (type === 'item') {
+        obj.style.bottom = (25 + Math.random() * 35) + '%';
+        // アイテム画像の適用。失敗してもCSSの背景色が残る (Amber指摘4)
+        obj.style.backgroundImage = `url(${assets.ruby})`;
+    } else {
+        obj.style.bottom = config.groundHeight + '%';
+    }
+    el.container.appendChild(obj);
+}
 
-    function updateBackground(deltaScale) {
-      bgLayers.forEach(layer => {
-        layer.x -= layer.speed * gameSpeed * deltaScale;
-        const wrapPoint = window.innerWidth;
-        if (layer.x <= -wrapPoint) {
-          layer.x += wrapPoint;
-        }
-        layer.el.style.transform = `translateX(${layer.x}px)`;
-      });
-    }
+function updateEntities(ds, speed) {
+    const pRect = el.player.getBoundingClientRect();
+    const hitMargin = 14; // 当たり判定の余裕
 
-    function updatePlayer(deltaScale) {
-      velocityY -= gravity * deltaScale;
-      playerY += velocityY * deltaScale;
+    const entities = document.querySelectorAll('.item, .obstacle');
+    for (const ent of entities) {
+        let x = parseFloat(ent.dataset.x);
+        x -= (speed / 12) * ds;
+        ent.dataset.x = x;
+        ent.style.left = x + '%';
 
-      if (playerY <= 0) {
-        playerY = 0;
-        velocityY = 0;
-        jumpCount = 0;
-        setPlayerVisual(false);
-      } else {
-        setPlayerVisual(true);
-      }
+        const eRect = ent.getBoundingClientRect();
 
-      const groundPx = pxFromVh(PLAYER_GROUND_PCT);
-      player.style.bottom = `${groundPx + playerY}px`;
-    }
+        // 衝突判定
+        if (pRect.left + hitMargin < eRect.right &&
+            pRect.right - hitMargin > eRect.left &&
+            pRect.top + hitMargin < eRect.bottom &&
+            pRect.bottom - hitMargin > eRect.top) {
+            
+            if (ent.classList.contains('item')) {
+                ent.remove();
+                state.scoreRaw += 500; // アイテム加点も小数スコアへ統合 (Amber指摘2)
+                if (!state.isFever) {
+                    state.feverGauge = Math.min(100, state.feverGauge + 10);
+                    if (state.feverGauge >= 100) startFever();
+                }
+            } else if (!state.isFever) {
+                gameOver();
+                return; // ループ中断
+            }
+        }
+        
+        // 画面外に出たら削除
+        if (x < -20) {
+            ent.remove();
+        }
+    }
+}
 
-    function updateSpawns(deltaMs) {
-      obstacleTimer += deltaMs;
-      itemTimer += deltaMs;
-      difficultyTimer += deltaMs;
+function startFever() {
+    // 既存のフィーバー終了タイマーがあればクリア (Amber指摘1)
+    if (feverTimeoutId) clearTimeout(feverTimeoutId);
 
-      const obstacleInterval = Math.max(1050, 1900 - (gameSpeed - INITIAL_GAME_SPEED) * 80);
-      const itemInterval = Math.max(850, 1450 - (gameSpeed - INITIAL_GAME_SPEED) * 35);
+    state.isFever = true;
+    el.container.classList.add('fever-mode');
+    
+    feverTimeoutId = setTimeout(() => {
+        state.isFever = false;
+        state.feverGauge = 0;
+        el.container.classList.remove('fever-mode');
+        feverTimeoutId = null;
+    }, config.feverDuration);
+}
 
-      if (obstacleTimer >= obstacleInterval) {
-        obstacleTimer = 0;
-        createObstacle();
-      }
+function draw() {
+    // プレイヤーの高さ反映
+    el.player.style.bottom = (config.groundHeight + (state.playerY / window.innerHeight * 100)) + '%';
+    
+    // スコアの表示更新 (Amber指摘2: 表示時のみ整数化)
+    el.score.textContent = Math.floor(state.scoreRaw);
+    
+    // フィーバーバー
+    el.feverBar.style.width = state.feverGauge + '%';
+}
 
-      if (itemTimer >= itemInterval) {
-        itemTimer = 0;
-        createItem();
-      }
+function gameOver() {
+    state.running = false;
+    // ゲームオーバー時もタイマーを整理
+    if (feverTimeoutId) {
+        clearTimeout(feverTimeoutId);
+        feverTimeoutId = null;
+    }
+    
+    document.getElementById('msg-title').textContent = "GAME OVER";
+    document.getElementById('msg-body').textContent = `FINAL SCORE: ${Math.floor(state.scoreRaw)}`;
+    el.overlay.style.display = 'flex';
+}
 
-      if (difficultyTimer >= 6000) {
-        difficultyTimer = 0;
-        gameSpeed = Math.min(14, gameSpeed + 0.5);
-      }
-    }
-
-    function updateObjects(deltaScale) {
-      const playerRect = player.getBoundingClientRect();
-
-      activeObstacles = activeObstacles.filter(obj => {
-        obj.x -= gameSpeed * 7.8 * deltaScale;
-        obj.el.style.left = `${obj.x}px`;
-
-        if (obj.x + obj.el.offsetWidth < -20) {
-          obj.el.remove();
-          return false;
-        }
-
-        if (!invincible) {
-          const rect = obj.el.getBoundingClientRect();
-          if (rectsOverlap(playerRect, rect)) {
-            gameOver();
-          }
-        }
-
-        return true;
-      });
-
-      activeItems = activeItems.filter(obj => {
-        obj.x -= gameSpeed * 6.7 * deltaScale;
-        obj.el.style.left = `${obj.x}px`;
-
-        if (obj.x + obj.el.offsetWidth < -20) {
-          obj.el.remove();
-          return false;
-        }
-
-        const rect = obj.el.getBoundingClientRect();
-        if (rectsOverlap(playerRect, rect)) {
-          score += 1;
-          collectedForStar += 1;
-          updateHud();
-          obj.el.remove();
-
-          if (collectedForStar >= STAR_TARGET && !invincible) {
-            activateStar();
-          }
-          return false;
-        }
-
-        return true;
-      });
-    }
-
-    function loop(timestamp) {
-      if (!running) return;
-
-      if (!lastTime) lastTime = timestamp;
-      const deltaMs = Math.min(33, timestamp - lastTime);
-      const deltaScale = deltaMs / 16.6667;
-      lastTime = timestamp;
-
-      updateBackground(deltaScale);
-      updatePlayer(deltaScale);
-      updateSpawns(deltaMs);
-      updateObjects(deltaScale);
-
-      if (running) {
-        requestAnimationFrame(loop);
-      }
-    }
-
-    /* 修正箇所：確実なボタン操作（clickのみ維持） */
-    startButton.addEventListener('click', startGame);
-    retryButton.addEventListener('click', startGame);
-
-    /* 修正箇所：入力イベントを game 領域に限定 */
-    game.addEventListener('pointerdown', (e) => {
-      if (!running) return;
-      if (e.target.tagName === 'BUTTON') return;
-      jump();
-    });
-
-    /* 修正箇所：resizeイベントによる再配置と高さ補正 */
-    window.addEventListener('resize', () => {
-      if (playerY === 0) {
-        player.style.bottom = `${PLAYER_GROUND_PCT}%`;
-      }
-      bgLayers.forEach(layer => {
-        if (layer.x <= -window.innerWidth) {
-          layer.x = layer.x % window.innerWidth;
-        }
-      });
-      game.style.height = `${window.innerHeight}px`;
-    });
-
-    // 初期化時の高さ補正
-    game.style.height = `${window.innerHeight}px`;
-
-    resetGame();
-  </script>
+init();
+</script>
 </body>
 </html>

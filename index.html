@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Phase 3.6 (Bug Fix & Stomp Update)</title>
+    <title>DENRUNNER - Phase 3.7 (Clean Assets & Stability)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -46,12 +46,17 @@
             to { transform: rotate(360deg); }
         }
 
-        /* 画像失敗時のフォールバック (Amber指示 ①) */
-        .player-fallback { background-color: #ffeb3b !important; border-radius: 10px; }
+        /* 画像失敗時のフォールバック: 黄色下地を完全撤去 (Amber指示 ①) */
+        .player-fallback { 
+            background-color: transparent !important; 
+            background-image: none !important;
+            border: none !important;
+        }
 
         .item, .obstacle, .stompEnemy, .flyEnemy, .hole { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; }
 
         .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
+        /* 障害物も踏めるルール化に伴い、見た目の威圧感を維持 */
         .obstacle { width: 55px; height: 65px; z-index: 40; background: #333; border-radius: 5px; border: 2px solid #555; }
         .stompEnemy { width: 60px; height: 50px; z-index: 45; background-color: #4caf50; border: 3px solid #fff; border-radius: 8px; }
         .flyEnemy { width: 50px; height: 40px; z-index: 48; background-color: #f44336; border-radius: 50% 50% 10% 10%; border: 2px solid #fff; }
@@ -85,7 +90,7 @@
 
     <div id="rotate-notice">
         <h1>スマホを横向きにしてね！</h1>
-        <p style="margin-top:10px;">横画面専用のゲームです</p>
+        <p style="margin-top:10px;">DENRUNNERは横画面専用です</p>
     </div>
 
     <div id="game-container">
@@ -103,19 +108,24 @@
 
         <div id="overlay">
             <h1 id="msg-title">DENRUNNER</h1>
-            <p id="msg-body">敵は上から踏んづけよう！<br>横からぶつかるとミス！<br>落とし穴に気をつけて！</p>
+            <p id="msg-body">
+                敵は上から踏んづけよう！<br>
+                横からぶつかるとミス！<br>
+                落とし穴に気をつけて！
+            </p>
             <button id="start-btn">GAME START</button>
         </div>
     </div>
 
 <script>
 /**
- * Denrunner: Final Stability Edition (v3.6)
+ * Denrunner: Final Stability Edition (v3.7)
  * 監修: アンバー / 実装: ヘルメス
- * 修正内容:
- * 1. プレイヤー画像表示不具合の徹底修正 (Amber指示 ①)
- * 2. 黒い障害物 (obstacle) も踏めるように変更 (Amber指示 ②)
- * 3. 各種タイマー管理の安全化とデバッグ機能 (Amber指示 ④)
+ * 修正点：
+ * 1. プレイヤーの黄色下地(fallback)を完全撤去 (Amber指示 ①)
+ * 2. setPlayerImageのフォールバック分岐の厳密化 (Amber指示 ②)
+ * 3. プレイ中の予期せぬ通常画像戻りを防止 (Amber指示 ③)
+ * 4. triggerMiss冒頭でのtimeoutクリア徹底 (Amber指示 ④)
  */
 
 const config = {
@@ -133,10 +143,9 @@ const config = {
     holeInterval: 6000,
     groundHeight: 15,
     scoreRate: 0.1,
-    DEBUG_FORCE_HOLE: true // 落とし穴の出現確認用 (Amber指示 ④B)
+    DEBUG_FORCE_HOLE: true // 落とし穴確認用。確認後は false に戻す (Amber指示 ⑥)
 };
 
-// 素材ファイル名の完全一致 (Amber指示 ① & ②)
 const assets = {
     player: 'DENさん走行.gif',
     playerJump: 'DENさんジャンプ.png',
@@ -144,7 +153,7 @@ const assets = {
     ruby: 'イザックるびぃ.png'
 };
 
-// 画像ロード状態の管理 (Amber指示 ①)
+// 画像ロード状態の管理
 const assetStatus = {
     [assets.player]: false,
     [assets.playerJump]: false,
@@ -217,7 +226,7 @@ function init() {
 }
 
 /**
- * プリロード強化 (Amber指示 ①)
+ * プリロード管理
  */
 function preloadAssets() {
     Object.keys(assetStatus).forEach(src => {
@@ -226,16 +235,16 @@ function preloadAssets() {
         img.onload = () => {
             assetStatus[src] = true;
             console.log('loaded:', src);
-            // 通常走行画像が読み込めたら即座にフォールバック解除
+            // 通常画像ロード完了時に、もしfallbackがついていれば剥がす
             if (src === assets.player) {
                 el.player.classList.remove('player-fallback');
-                if (!state.isMissed) setPlayerImage(assets.player);
+                // ※ ここで setPlayerImage() を呼ばないように修正 (Amber指示 ③)
             }
         };
         img.onerror = () => {
             assetStatus[src] = false;
             console.warn('failed:', src);
-            // 走行画像が失敗した時だけフォールバックをつける
+            // 通常画像が完全にダメな時のみ、最終手段としてfallback付与
             if (src === assets.player) {
                 el.player.classList.add('player-fallback');
             }
@@ -272,9 +281,8 @@ function startGame() {
         firstHoleSpawned: false
     };
 
-    // クラス管理の安全性向上 (Amber指示 ⑤)
     el.player.classList.remove('player-spin-anim');
-    setPlayerImage(assets.player); 
+    setPlayerImage(assets.player); // 明示的に走行画像へ (Amber指示 ③)
 
     el.overlay.style.display = 'none';
     el.container.classList.remove('fever-mode');
@@ -302,23 +310,28 @@ function handleInput() {
 }
 
 /**
- * プレイヤー画像設定 (Amber指示 ①C)
+ * プレイヤー画像設定の厳密化 (Amber指示 ②)
  */
 function setPlayerImage(src) {
     if (!src) return;
     
-    // 画像が正常に読み込めているかチェック
+    console.log('setPlayerImage:', src, 'status=', assetStatus[src]);
+
+    // 1. 指定画像が使える場合
     if (assetStatus[src]) {
         el.player.classList.remove('player-fallback');
         el.player.style.backgroundImage = `url(${src})`;
-    } else {
-        // 画像がない場合でも、通常画像が読み込めていればそちらを優先する等の回避策
-        if (assetStatus[assets.player]) {
-            el.player.classList.remove('player-fallback');
-            el.player.style.backgroundImage = `url(${assets.player})`;
-        } else {
-            el.player.classList.add('player-fallback');
-        }
+    } 
+    // 2. 指定画像はダメだが通常走行画像なら使える場合
+    else if (assetStatus[assets.player]) {
+        el.player.classList.remove('player-fallback');
+        el.player.style.backgroundImage = `url(${assets.player})`;
+    } 
+    // 3. それもダメな場合 (Amber指示 ②C)
+    else {
+        console.warn('fallback used for:', src);
+        el.player.style.backgroundImage = ''; // 古い画像を消去
+        el.player.classList.add('player-fallback');
     }
 }
 
@@ -359,7 +372,7 @@ function update(dt, ds, timestamp) {
             state.playerY = 0;
             state.velocityY = 0;
             state.jumps = 0;
-            setPlayerImage(assets.player);
+            setPlayerImage(assets.player); // 着地時に通常画像へ
         } else {
             if (state.playerY < -200) {
                 triggerMiss();
@@ -389,7 +402,7 @@ function update(dt, ds, timestamp) {
         state.flyTimer += dt;
         state.holeTimer += dt;
 
-        // デバッグ用: 落とし穴強制生成 (Amber指示 ④B)
+        // デバッグ用
         if (config.DEBUG_FORCE_HOLE && !state.firstHoleSpawned && state.distance > 1500) {
             createEntity('hole');
             state.firstHoleSpawned = true;
@@ -475,7 +488,6 @@ function updateEntities(ds, speed, timestamp) {
                     if (state.feverGauge >= 100) startFever();
                 }
             } 
-            // 踏める判定対象の統一 (Amber指示 ②: obstacle も追加)
             else {
                 const isStompable = ent.classList.contains('stompEnemy') || 
                                     ent.classList.contains('flyEnemy') || 
@@ -484,18 +496,15 @@ function updateEntities(ds, speed, timestamp) {
                 if (isStompable) {
                     const isFalling = state.velocityY > 0;
                     const playerBottom = pRect.bottom - hitMargin;
-                    // 飛行敵は少し甘めに
                     const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 25 : eRect.top + 10;
 
                     if (isFalling && playerBottom < enemyTopLimit + 20) {
-                        // 踏みつけ成功
                         ent.remove();
                         state.scoreRaw += 500;
                         state.velocityY = config.stompBouncePower;
                         state.jumps = 1;
                         if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
                     } else if (!state.isFever) {
-                        // 横・下からの接触
                         triggerMiss();
                         return;
                     }
@@ -506,10 +515,19 @@ function updateEntities(ds, speed, timestamp) {
     }
 }
 
+/**
+ * ミス演出 (Amber指示 ④)
+ */
 function triggerMiss() {
     if (state.isMissed) return;
-    state.isMissed = true;
     
+    // 既存タイマーを整理 (Amber指示 ④)
+    if (missTimeoutId) {
+        clearTimeout(missTimeoutId);
+        missTimeoutId = null;
+    }
+
+    state.isMissed = true;
     setPlayerImage(assets.playerMiss);
     el.player.classList.remove('player-spin-anim');
     state.velocityY = -12; 
@@ -542,7 +560,6 @@ function draw(timestamp) {
 
 function showGameOver() {
     state.running = false;
-    // タイマー整理 (Amber指示 ④A)
     if (feverTimeoutId) clearTimeout(feverTimeoutId);
     if (spinTimeoutId) clearTimeout(spinTimeoutId);
     if (missTimeoutId) {

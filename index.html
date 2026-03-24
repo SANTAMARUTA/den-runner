@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Final Stability Edition</title>
+    <title>DENRUNNER - Phase 1 (Stompable Enemy)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -14,58 +14,55 @@
         body, html { 
             width: 100%; height: 100%; overflow: hidden; 
             background: #000; font-family: 'Arial', sans-serif;
-            touch-action: none;
-            -webkit-user-select: none;
-            user-select: none;
+            touch-action: none; -webkit-user-select: none; user-select: none;
         }
 
-        /* 向き判定用UI */
+        /* 向き判定 */
         #rotate-notice {
             position: fixed; inset: 0; background: #111; color: #fff;
             display: none; flex-direction: column; align-items: center; justify-content: center;
             z-index: 10000; text-align: center; padding: 20px;
         }
-        
-        #game-container { 
-            display: block; position: relative; width: 100vw; height: 100vh; 
-            background: var(--bg-sky); overflow: hidden; 
+        #game-container { display: block; position: relative; width: 100vw; height: 100vh; background: var(--bg-sky); overflow: hidden; }
+
+        @media (orientation: portrait) { 
+            #rotate-notice { display: flex; } 
+            #game-container { display: none; } 
         }
 
-        /* フィーバー演出 */
         #game-container.fever-mode { background: var(--fever-bg); animation: fever-flash 0.5s infinite alternate; }
         @keyframes fever-flash { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(90deg); } }
 
-        /* 背景レイヤー */
         .layer { position: absolute; top: 0; left: 0; width: 200%; height: 100%; pointer-events: none; }
         #layer-back { background: radial-gradient(circle at 20% 20%, #fff 0%, transparent 10%); opacity: 0.3; }
         #layer-mid { background: repeating-linear-gradient(90deg, transparent 0, transparent 200px, rgba(255,255,255,0.1) 200px, rgba(255,255,255,0.1) 400px); }
         #ground { position: absolute; bottom: 0; width: 200%; height: 15%; background: #5d4037; border-top: 4px solid #8d6e63; z-index: 10; }
 
-        /* 入力レイヤー */
         #input-layer { position: absolute; inset: 0; z-index: 1500; }
 
-        /* プレイヤー設定 (Amber指摘3: 背景色を透過させるため削除) */
         #player {
             position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
-            background-color: transparent; /* 基本は透明 */
-            background-size: contain; background-repeat: no-repeat; background-position: center;
+            background-color: transparent; background-size: contain; background-repeat: no-repeat; background-position: center;
         }
-        
-        /* 画像が読み込めない時のフォールバック (Amber指摘3) */
-        .player-fallback {
-            background-color: #ffeb3b !important;
-            border-radius: 10px;
+        .player-fallback { background-color: #ffeb3b !important; border-radius: 10px; }
+
+        /* エンティティ共通 */
+        .item, .obstacle, .stompEnemy { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; }
+
+        /* アイテム */
+        .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
+
+        /* 通常障害物 (トゲ・岩など) */
+        .obstacle { width: 55px; height: 65px; z-index: 40; background: #333; border-radius: 5px; border: 2px solid #555; }
+
+        /* 踏める敵 (Amber仕様 A) */
+        .stompEnemy { 
+            width: 60px; height: 50px; z-index: 45; 
+            background-color: #4caf50; /* 仮色: 緑 */
+            border: 3px solid #fff; border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        .item { 
-            position: absolute; width: 45px; height: 45px; z-index: 50; border-radius: 50%; 
-            background-color: #ff4081; 
-            box-shadow: 0 0 15px #fff, 0 0 5px #ff4081; 
-            background-size: contain; background-repeat: no-repeat; background-position: center;
-        }
-        .obstacle { position: absolute; width: 55px; height: 65px; z-index: 40; background: #333; border-radius: 5px; border: 2px solid #555; }
-
-        /* UI */
         #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 2000; color: #fff; text-shadow: 2px 2px 4px #000; pointer-events: none; }
         .stat-box { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
         #fever-bar-container { width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; }
@@ -82,7 +79,7 @@
             margin-top: 20px; pointer-events: auto; box-shadow: 0 4px 0 #c4a000;
         }
         button:active { transform: translateY(2px); box-shadow: 0 2px 0 #c4a000; }
-        button:disabled { background: #999; box-shadow: none; cursor: default; }
+        button:disabled { background: #999; box-shadow: none; }
     </style>
 </head>
 <body>
@@ -107,37 +104,38 @@
 
         <div id="overlay">
             <h1 id="msg-title">DENRUNNER</h1>
-            <p id="msg-body">タップでジャンプ！2段ジャンプ対応<br>イザックるびぃを集めてフィーバー！</p>
+            <p id="msg-body">タップでジャンプ！<br>敵は上から踏んで倒せるぞ！</p>
             <button id="start-btn">GAME START</button>
         </div>
     </div>
 
 <script>
 /**
- * Denrunner: Final Stability Edition (v3.3)
+ * Denrunner: Expansion Phase 1
  * 監修: アンバー / 実装: ヘルメス
- * * * 修正点：
- * 1. JSによる厳密な向き判定 (isLandscape) 導入
- * 2. プレイヤーの背景色透過バグの解消
- * 3. 二重起動防止 (startGameガード)
- * 4. 縦向き時のゲームループ停止 & 入力無効化
+ * * 修正内容:
+ * 1. stompEnemy (踏める敵) の追加
+ * 2. 下降中かつ頭上からの接触のみ「撃破」とする判定ロジックの実装
+ * 3. 撃破時のバウンド挙動の実装
  */
 
 const config = {
     gravity: 0.8,
     jumpPower: -16,
+    stompBouncePower: -12, // 踏んだ時の跳ね返り強度
     baseSpeed: 7,
     maxSpeed: 18,
     feverBonus: 8,
     feverDuration: 5000,
     itemSpawnInterval: 1200, 
-    obsSpawnInterval: 1800,
+    obsSpawnInterval: 2200,
+    stompEnemySpawnInterval: 3500, // 踏める敵の出現間隔
     groundHeight: 15,
     scoreRate: 0.1
 };
 
 let feverTimeoutId = null;
-let isLandscape = true; // 向き状態 (Amber指摘1)
+let isLandscape = true;
 
 let state = {
     running: false,
@@ -151,14 +149,15 @@ let state = {
     feverGauge: 0,
     lastTime: 0,
     itemTimer: 0,
-    obsTimer: 0
+    obsTimer: 0,
+    stompTimer: 0 // 踏める敵用タイマー
 };
 
-// 画像素材の一括管理 (Amber指摘4)
 const assets = {
     player: 'DENさん走行時.gif',
     playerJump: 'DENさんジャンプ.png',
-    ruby: 'イザックるびぃ.png'
+    ruby: 'イザックるびぃ.png',
+    enemy: '' // 必要に応じて追加
 };
 
 const el = {
@@ -175,9 +174,6 @@ const el = {
     notice: document.getElementById('rotate-notice')
 };
 
-/**
- * 向き判定 (Amber指摘1 & 2)
- */
 function checkOrientation() {
     isLandscape = window.innerWidth > window.innerHeight;
     if (isLandscape) {
@@ -190,7 +186,6 @@ function checkOrientation() {
 }
 
 function init() {
-    // 向き判定のイベント登録
     window.addEventListener('resize', checkOrientation);
     window.addEventListener('orientationchange', checkOrientation);
     checkOrientation();
@@ -201,7 +196,6 @@ function init() {
     });
     el.input.addEventListener('pointerdown', handleInput);
     
-    // プレイヤー画像の読み込みチェック (Amber指摘3)
     preloadPlayerAssets();
 }
 
@@ -218,7 +212,6 @@ function preloadPlayerAssets() {
 }
 
 function startGame() {
-    // 二重起動防止 (Amber指摘 早1)
     if (state.running) return;
     el.startBtn.disabled = true;
 
@@ -239,36 +232,32 @@ function startGame() {
         feverGauge: 0,
         lastTime: performance.now(),
         itemTimer: 0,
-        obsTimer: 0
+        obsTimer: 0,
+        stompTimer: 0
     };
 
     el.overlay.style.display = 'none';
     el.container.classList.remove('fever-mode');
-    document.querySelectorAll('.item, .obstacle').forEach(n => n.remove());
+    document.querySelectorAll('.item, .obstacle, .stompEnemy').forEach(n => n.remove());
     
     requestAnimationFrame(gameLoop);
 }
 
 function handleInput() {
-    // 縦向き時、または実行中以外は入力を受け付けない (Amber指摘 早3)
     if (!state.running || !isLandscape || state.jumps >= 2) return;
-    
     state.velocityY = config.jumpPower;
     state.jumps++;
     setPlayerImage(assets.playerJump);
 }
 
 function setPlayerImage(src) {
-    // 画像パスが正しい時のみ適用。無い時はフォールバック色が活きる
-    el.player.style.backgroundImage = `url(${src})`;
+    if (src) el.player.style.backgroundImage = `url(${src})`;
 }
 
 function gameLoop(timestamp) {
     if (!state.running) return;
-
-    // 縦向き中は処理をスキップ (Amber指摘2)
     if (!isLandscape) {
-        state.lastTime = timestamp; // 時間の経過だけリセットして進ませない
+        state.lastTime = timestamp;
         requestAnimationFrame(gameLoop);
         return;
     }
@@ -283,7 +272,6 @@ function gameLoop(timestamp) {
 }
 
 function update(dt, ds) {
-    // 速度計算
     if (!state.isFever) {
         state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
     }
@@ -300,7 +288,7 @@ function update(dt, ds) {
         setPlayerImage(assets.player);
     }
 
-    // スコア更新
+    // スコア & 距離
     const moveDist = currentTotalSpeed * ds;
     state.distance += moveDist;
     state.scoreRaw += moveDist * config.scoreRate;
@@ -311,9 +299,10 @@ function update(dt, ds) {
     el.layerBack.style.transform = `translateX(${-bgPos * 0.15}px)`;
     el.ground.style.transform = `translateX(${-bgPos}px)`;
 
-    // 生成
+    // 生成タイマー (while方式)
     state.itemTimer += dt;
     state.obsTimer += dt;
+    state.stompTimer += dt;
 
     while (state.itemTimer >= config.itemSpawnInterval) {
         createEntity('item');
@@ -322,6 +311,10 @@ function update(dt, ds) {
     while (state.obsTimer >= config.obsSpawnInterval) {
         if (!state.isFever) createEntity('obstacle');
         state.obsTimer -= config.obsSpawnInterval;
+    }
+    while (state.stompTimer >= config.stompEnemySpawnInterval) {
+        createEntity('stompEnemy');
+        state.stompTimer -= config.stompEnemySpawnInterval;
     }
 
     updateEntities(ds, currentTotalSpeed);
@@ -336,6 +329,7 @@ function createEntity(type) {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
         obj.style.backgroundImage = `url(${assets.ruby})`;
     } else {
+        // 通常障害物も踏める敵も地面に配置
         obj.style.bottom = config.groundHeight + '%';
     }
     el.container.appendChild(obj);
@@ -343,9 +337,9 @@ function createEntity(type) {
 
 function updateEntities(ds, speed) {
     const pRect = el.player.getBoundingClientRect();
+    const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy');
     const hitMargin = 14; 
 
-    const entities = document.querySelectorAll('.item, .obstacle');
     for (const ent of entities) {
         let x = parseFloat(ent.dataset.x);
         x -= (speed / 12) * ds;
@@ -354,6 +348,7 @@ function updateEntities(ds, speed) {
 
         const eRect = ent.getBoundingClientRect();
 
+        // 基本衝突判定
         if (pRect.left + hitMargin < eRect.right &&
             pRect.right - hitMargin > eRect.left &&
             pRect.top + hitMargin < eRect.bottom &&
@@ -366,7 +361,33 @@ function updateEntities(ds, speed) {
                     state.feverGauge = Math.min(100, state.feverGauge + 10);
                     if (state.feverGauge >= 100) startFever();
                 }
-            } else if (!state.isFever) {
+            } 
+            else if (ent.classList.contains('stompEnemy')) {
+                // 踏める敵の特別判定 (Amber仕様 A)
+                // 1. プレイヤーが下降中
+                // 2. プレイヤーの底面が敵の上面付近にある (横からではない)
+                const isFalling = state.velocityY > 0;
+                const playerBottom = pRect.bottom - hitMargin;
+                const enemyTop = eRect.top + 10; // 少し猶予を持たせる
+
+                if (isFalling && playerBottom < enemyTop + 20) {
+                    // 撃破成功！
+                    ent.remove();
+                    state.scoreRaw += 500; // 撃破スコア
+                    state.velocityY = config.stompBouncePower; // 跳ね返り
+                    state.jumps = 1; // 1段ジャンプ消費扱いにすることで空中制御しやすくする
+                    
+                    // フィーバーゲージも少し加算
+                    if (!state.isFever) {
+                        state.feverGauge = Math.min(100, state.feverGauge + 5);
+                    }
+                } else if (!state.isFever) {
+                    // 横・下からの接触
+                    gameOver();
+                    return;
+                }
+            }
+            else if (ent.classList.contains('obstacle') && !state.isFever) {
                 gameOver();
                 return;
             }
@@ -381,9 +402,7 @@ function startFever() {
     el.container.classList.add('fever-mode');
     
     feverTimeoutId = setTimeout(() => {
-        // フィーバー終了時の最終保険 (Amber指摘 早2)
         if (!state.running) return;
-        
         state.isFever = false;
         state.feverGauge = 0;
         el.container.classList.remove('fever-mode');
@@ -399,18 +418,16 @@ function draw() {
 
 function gameOver() {
     state.running = false;
-    el.startBtn.disabled = false; // ボタンを再度有効化
+    el.startBtn.disabled = false;
     if (feverTimeoutId) {
         clearTimeout(feverTimeoutId);
         feverTimeoutId = null;
     }
-    
     document.getElementById('msg-title').textContent = "GAME OVER";
     document.getElementById('msg-body').textContent = `FINAL SCORE: ${Math.floor(state.scoreRaw)}`;
     el.overlay.style.display = 'flex';
 }
 
-// 実行
 init();
 </script>
 </body>

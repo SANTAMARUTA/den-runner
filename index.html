@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Phase 4.3 (Final Visual Adjustments)</title>
+    <title>DENRUNNER - Phase 4.5 (Stability Refined)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -65,7 +65,7 @@
 
         .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
         
-        /* 敵キャラサイズ再拡大 (Amber指示 ④) */
+        /* 敵キャラサイズ */
         .enemy-auto { width: 110px; height: 110px; z-index: 40; }
         .enemy-satoru { width: 115px; height: 100px; z-index: 45; }
         .enemy-arakatsu { width: 105px; height: 85px; z-index: 48; }
@@ -132,13 +132,13 @@
 
 <script>
 /**
- * Denrunner: Final Stability Edition (v4.3)
+ * Denrunner: Final Stability Edition (v4.5)
  * 監修: アンバー / 実装: ヘルメス
  * 修正点：
- * 1. setPlayerImage() の early return 条件を緩和 (Amber指示 ①)
- * 2. アイテム（るびぃ）の画像失敗時フォールバック実装 (Amber指示 ②)
- * 3. ゲームオーバー時のBGM完全リセット処理 (Amber指示 ③)
- * 4. 敵サイズをさらに拡大し、当たり判定マージンを最適化 (Amber指示 ④)
+ * 1. preloadAssets() から DOM 操作を排除し表示の崩れを防止
+ * 2. setPlayerImage() に表示ロジックを完全一本化
+ * 3. プレイヤー画像フォールバック時の console.warn 追加
+ * 4. BGMリセットおよび踏みつけSE仕様の維持
  */
 
 const config = {
@@ -157,7 +157,8 @@ const config = {
     groundHeight: 15,
     scoreRate: 0.1,
     DEBUG_FORCE_HOLE: false,
-    bgmVolume: 0.5
+    bgmVolume: 0.5,
+    stompSeVolume: 0.7
 };
 
 const assets = {
@@ -168,7 +169,8 @@ const assets = {
     enemyAuto: 'オート.png',
     enemySatoru: 'サトルさん.png',
     enemyArakatsu: 'アラカツさん.png',
-    bgm: 'DEN RUNNER Main Loop.wav'
+    bgm: 'DEN RUNNER Main Loop.wav',
+    stompSe: '踏む音.mp3'
 };
 
 const assetStatus = {
@@ -234,6 +236,19 @@ function checkOrientation() {
     }
 }
 
+/**
+ * 踏みつけ効果音の再生
+ */
+function playStompSe() {
+    try {
+        const se = new Audio(assets.stompSe);
+        se.volume = config.stompSeVolume;
+        se.play().catch(e => console.warn('SE play blocked:', e));
+    } catch (e) {
+        console.warn('Failed to play stomp SE:', e);
+    }
+}
+
 function init() {
     window.addEventListener('resize', checkOrientation);
     window.addEventListener('orientationchange', checkOrientation);
@@ -252,27 +267,27 @@ function init() {
     preloadAssets();
 }
 
+/**
+ * プリロード管理
+ * DOMは触らず、ステータス更新のみを行う (指示：再発防止)
+ */
 function preloadAssets() {
     Object.keys(assetStatus).forEach(key => {
         const img = new Image();
         img.src = assets[key];
         img.onload = () => {
             assetStatus[key] = true;
-            console.log('loaded:', key, assets[key]);
+            console.log('loaded asset:', key, assets[key]);
         };
         img.onerror = () => {
             assetStatus[key] = false;
-            console.warn('failed:', key, assets[key]);
+            console.warn('failed asset:', key, assets[key]);
         };
     });
 }
 
 function startGame() {
     if (state.running) return;
-
-    // 診断ログ
-    console.log('--- START GAME ---');
-    console.log('player asset loaded =', assetStatus.player);
 
     if (gameBgm) {
         gameBgm.currentTime = 0;
@@ -337,15 +352,11 @@ function handleInput() {
 
 /**
  * プレイヤー表示制御の唯一の窓口
- * early return 条件を緩和し、より確実に画像を反映する (Amber指示 ①)
+ * fallback時に console.warn を追加 (指示：デバッグ強化)
  */
 function setPlayerImage(key) {
-    console.log('setPlayerImage called:', key, 'current=', currentPlayerImageKey);
-
-    // 簡略化されたチェック
     if (currentPlayerImageKey === key) return;
 
-    // 初期化
     el.player.classList.remove('player-fallback');
     el.player.style.backgroundImage = '';
 
@@ -354,12 +365,12 @@ function setPlayerImage(key) {
         el.player.style.backgroundImage = `url(${assets[key]})`;
         currentPlayerImageKey = key;
     } 
-    // 2. 指定画像がダメだが通常走行画像(player)なら使える場合 (フォールバック)
+    // 2. 指定画像はダメだが通常走行画像(player)なら使える場合
     else if (key !== 'player' && assetStatus['player']) {
         el.player.style.backgroundImage = `url(${assets['player']})`;
         currentPlayerImageKey = 'player';
     } 
-    // 3. どちらもダメな場合
+    // 3. どちらもダメな場合 (透明フォールバック)
     else {
         console.warn('player fallback used:', key); 
         el.player.classList.add('player-fallback');
@@ -399,7 +410,6 @@ function update(dt, ds, timestamp) {
     state.velocityY += config.gravity * ds;
     state.playerY -= state.velocityY * ds;
 
-    // 着地判定
     if (state.playerY <= 0) {
         if (!state.isAboveHole) {
             state.playerY = 0;
@@ -463,9 +473,6 @@ function update(dt, ds, timestamp) {
     updateEntities(ds, currentTotalSpeed, timestamp);
 }
 
-/**
- * 敵の画像フォールバックを考慮した生成
- */
 function createEntity(type) {
     const obj = document.createElement('div');
     obj.className = type;
@@ -473,13 +480,10 @@ function createEntity(type) {
     
     if (type === 'item') {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
-        // アイテム画像失敗時のフォールバック (Amber指示 ②)
         if (assetStatus.ruby) {
             obj.style.backgroundImage = `url(${assets.ruby})`;
-            obj.style.boxShadow = 'none'; // 画像がある時は発光を抑える
+            obj.style.boxShadow = 'none';
             obj.style.backgroundColor = 'transparent';
-        } else {
-            // CSS側のデフォルトスタイルが適用される
         }
     } else if (type === 'obstacle') {
         obj.classList.add('enemy-auto');
@@ -520,9 +524,7 @@ function updateEntities(ds, speed, timestamp) {
     const pRect = el.player.getBoundingClientRect();
     const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole');
     
-    // 敵の拡大に伴い hitMargin を調整 (Amber指示 ④)
     const baseHitMargin = 14; 
-
     state.isAboveHole = false;
 
     for (const ent of entities) {
@@ -530,11 +532,10 @@ function updateEntities(ds, speed, timestamp) {
         x -= (speed / 12) * ds;
         ent.dataset.x = x;
 
-        // 敵タイプごとの当たり判定調整 (Amber指示 ④)
         let hitMargin = baseHitMargin;
-        if (ent.classList.contains('enemy-auto')) hitMargin = 28; // さらに内側に
+        if (ent.classList.contains('enemy-auto')) hitMargin = 28;
         if (ent.classList.contains('enemy-satoru')) hitMargin = 28;
-        if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35; // 飛行敵はさらに甘く
+        if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
 
         // 固有挙動
         let wobbleX = 0;
@@ -605,6 +606,7 @@ function updateEntities(ds, speed, timestamp) {
                     const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
 
                     if (isFalling && playerBottom < enemyTopLimit + 20) {
+                        playStompSe(); 
                         ent.remove();
                         state.scoreRaw += 500;
                         state.velocityY = config.stompBouncePower;
@@ -659,7 +661,6 @@ function draw(timestamp) {
 
 function showGameOver() {
     state.running = false;
-    // BGM完全リセット処理 (Amber指示 ③)
     if (gameBgm) {
         gameBgm.pause();
         gameBgm.currentTime = 0;

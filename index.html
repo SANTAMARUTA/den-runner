@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Phase 4.1 (Visual Polish)</title>
+    <title>DENRUNNER - Phase 4.3 (Final Visual Adjustments)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -38,7 +38,6 @@
             position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
             background-color: transparent; background-size: contain; background-repeat: no-repeat; background-position: center;
             transform-origin: center center;
-            /* 描画安定化 (Amber指示 ①) */
             will-change: transform;
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
@@ -51,6 +50,7 @@
             to { transform: rotate(360deg); }
         }
 
+        /* 主人公フォールバック (透明のまま) */
         .player-fallback { 
             background-color: transparent !important; 
             background-image: none !important;
@@ -65,10 +65,14 @@
 
         .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
         
-        /* 敵キャラサイズ拡大 (Amber指示 ②) */
-        .enemy-auto { width: 90px; height: 90px; z-index: 40; }
-        .enemy-satoru { width: 95px; height: 82px; z-index: 45; }
-        .enemy-arakatsu { width: 85px; height: 70px; z-index: 48; }
+        /* 敵キャラサイズ再拡大 (Amber指示 ④) */
+        .enemy-auto { width: 110px; height: 110px; z-index: 40; }
+        .enemy-satoru { width: 115px; height: 100px; z-index: 45; }
+        .enemy-arakatsu { width: 105px; height: 85px; z-index: 48; }
+
+        .enemy-auto.fallback-enemy { background-color: #222; border-radius: 5px; }
+        .enemy-satoru.fallback-enemy { background-color: #2e7d32; border-radius: 8px; }
+        .enemy-arakatsu.fallback-enemy { background-color: #3949ab; border-radius: 50% 50% 10% 10%; }
 
         .hole { 
             width: 140px; height: 16%; bottom: 0; z-index: 5; 
@@ -128,12 +132,13 @@
 
 <script>
 /**
- * Denrunner: Final Stability Edition (v4.1)
+ * Denrunner: Final Stability Edition (v4.3)
  * 監修: アンバー / 実装: ヘルメス
  * 修正点：
- * 1. プレイヤー画像再セット防止による点滅感解消 (Amber指示 ①)
- * 2. 敵キャラのサイズ拡大 (Amber指示 ②)
- * 3. 敵タイプごとの当たり判定マージン最適化 (Amber指示 ②)
+ * 1. setPlayerImage() の early return 条件を緩和 (Amber指示 ①)
+ * 2. アイテム（るびぃ）の画像失敗時フォールバック実装 (Amber指示 ②)
+ * 3. ゲームオーバー時のBGM完全リセット処理 (Amber指示 ③)
+ * 4. 敵サイズをさらに拡大し、当たり判定マージンを最適化 (Amber指示 ④)
  */
 
 const config = {
@@ -181,7 +186,7 @@ let spinTimeoutId = null;
 let missTimeoutId = null;
 let isLandscape = true;
 let gameBgm = null; 
-let currentPlayerImageKey = null; // 現在表示中の画像キー (Amber指示 ①)
+let currentPlayerImageKey = null; 
 
 let state = {
     running: false,
@@ -253,17 +258,21 @@ function preloadAssets() {
         img.src = assets[key];
         img.onload = () => {
             assetStatus[key] = true;
-            if (key === 'player') el.player.classList.remove('player-fallback');
+            console.log('loaded:', key, assets[key]);
         };
         img.onerror = () => {
             assetStatus[key] = false;
-            if (key === 'player') el.player.classList.add('player-fallback');
+            console.warn('failed:', key, assets[key]);
         };
     });
 }
 
 function startGame() {
     if (state.running) return;
+
+    // 診断ログ
+    console.log('--- START GAME ---');
+    console.log('player asset loaded =', assetStatus.player);
 
     if (gameBgm) {
         gameBgm.currentTime = 0;
@@ -298,7 +307,7 @@ function startGame() {
     };
 
     el.player.classList.remove('player-spin-anim');
-    currentPlayerImageKey = null; // リセット
+    currentPlayerImageKey = null; 
     setPlayerImage('player'); 
 
     el.overlay.style.display = 'none';
@@ -327,24 +336,32 @@ function handleInput() {
 }
 
 /**
- * プレイヤー画像設定 (Amber指示 ①)
- * 二重セットを防止して点滅を解消
+ * プレイヤー表示制御の唯一の窓口
+ * early return 条件を緩和し、より確実に画像を反映する (Amber指示 ①)
  */
 function setPlayerImage(key) {
-    if (currentPlayerImageKey === key && el.player.style.backgroundImage !== '') return;
+    console.log('setPlayerImage called:', key, 'current=', currentPlayerImageKey);
 
+    // 簡略化されたチェック
+    if (currentPlayerImageKey === key) return;
+
+    // 初期化
+    el.player.classList.remove('player-fallback');
+    el.player.style.backgroundImage = '';
+
+    // 1. 指定された画像が使える場合
     if (assetStatus[key]) {
-        el.player.classList.remove('player-fallback');
         el.player.style.backgroundImage = `url(${assets[key]})`;
         currentPlayerImageKey = key;
     } 
+    // 2. 指定画像がダメだが通常走行画像(player)なら使える場合 (フォールバック)
     else if (key !== 'player' && assetStatus['player']) {
-        el.player.classList.remove('player-fallback');
         el.player.style.backgroundImage = `url(${assets['player']})`;
         currentPlayerImageKey = 'player';
     } 
+    // 3. どちらもダメな場合
     else {
-        el.player.style.backgroundImage = ''; 
+        console.warn('player fallback used:', key); 
         el.player.classList.add('player-fallback');
         currentPlayerImageKey = null;
     }
@@ -388,7 +405,6 @@ function update(dt, ds, timestamp) {
             state.playerY = 0;
             state.velocityY = 0;
             state.jumps = 0;
-            // 着地した瞬間だけ通常画像へ戻す (Amber指示 ①)
             if (!state.isMissed && currentPlayerImageKey !== 'player') {
                 setPlayerImage('player');
             }
@@ -447,6 +463,9 @@ function update(dt, ds, timestamp) {
     updateEntities(ds, currentTotalSpeed, timestamp);
 }
 
+/**
+ * 敵の画像フォールバックを考慮した生成
+ */
 function createEntity(type) {
     const obj = document.createElement('div');
     obj.className = type;
@@ -454,21 +473,40 @@ function createEntity(type) {
     
     if (type === 'item') {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
-        obj.style.backgroundImage = `url(${assets.ruby})`;
+        // アイテム画像失敗時のフォールバック (Amber指示 ②)
+        if (assetStatus.ruby) {
+            obj.style.backgroundImage = `url(${assets.ruby})`;
+            obj.style.boxShadow = 'none'; // 画像がある時は発光を抑える
+            obj.style.backgroundColor = 'transparent';
+        } else {
+            // CSS側のデフォルトスタイルが適用される
+        }
     } else if (type === 'obstacle') {
         obj.classList.add('enemy-auto');
-        obj.style.backgroundImage = `url(${assets.enemyAuto})`;
+        if (assetStatus.enemyAuto) {
+            obj.style.backgroundImage = `url(${assets.enemyAuto})`;
+        } else {
+            obj.classList.add('fallback-enemy');
+        }
         obj.style.bottom = config.groundHeight + '%';
         obj.dataset.yOffset = 0;
         obj.dataset.yVel = 0;
         obj.dataset.jumpTimer = Math.random() * 2000;
     } else if (type === 'stompEnemy') {
         obj.classList.add('enemy-satoru');
-        obj.style.backgroundImage = `url(${assets.enemySatoru})`;
+        if (assetStatus.enemySatoru) {
+            obj.style.backgroundImage = `url(${assets.enemySatoru})`;
+        } else {
+            obj.classList.add('fallback-enemy');
+        }
         obj.style.bottom = config.groundHeight + '%';
     } else if (type === 'flyEnemy') {
         obj.classList.add('enemy-arakatsu');
-        obj.style.backgroundImage = `url(${assets.enemyArakatsu})`;
+        if (assetStatus.enemyArakatsu) {
+            obj.style.backgroundImage = `url(${assets.enemyArakatsu})`;
+        } else {
+            obj.classList.add('fallback-enemy');
+        }
         obj.style.bottom = (35 + Math.random() * 25) + '%';
     } else if (type === 'hole') {
         obj.style.bottom = '0';
@@ -482,7 +520,7 @@ function updateEntities(ds, speed, timestamp) {
     const pRect = el.player.getBoundingClientRect();
     const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole');
     
-    // 基本のヒットマージン。敵の拡大に伴い調整 (Amber指示 ②)
+    // 敵の拡大に伴い hitMargin を調整 (Amber指示 ④)
     const baseHitMargin = 14; 
 
     state.isAboveHole = false;
@@ -492,11 +530,11 @@ function updateEntities(ds, speed, timestamp) {
         x -= (speed / 12) * ds;
         ent.dataset.x = x;
 
-        // 敵タイプごとの当たり判定調整 (Amber指示 ②)
+        // 敵タイプごとの当たり判定調整 (Amber指示 ④)
         let hitMargin = baseHitMargin;
-        if (ent.classList.contains('enemy-auto')) hitMargin = 22; // 見た目より内側
-        if (ent.classList.contains('enemy-satoru')) hitMargin = 22;
-        if (ent.classList.contains('enemy-arakatsu')) hitMargin = 28; // 飛行敵はさらに甘く
+        if (ent.classList.contains('enemy-auto')) hitMargin = 28; // さらに内側に
+        if (ent.classList.contains('enemy-satoru')) hitMargin = 28;
+        if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35; // 飛行敵はさらに甘く
 
         // 固有挙動
         let wobbleX = 0;
@@ -564,7 +602,7 @@ function updateEntities(ds, speed, timestamp) {
                 if (isStompable) {
                     const isFalling = state.velocityY > 0;
                     const playerBottom = pRect.bottom - hitMargin;
-                    const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 30 : eRect.top + 15;
+                    const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
 
                     if (isFalling && playerBottom < enemyTopLimit + 20) {
                         ent.remove();
@@ -621,13 +659,20 @@ function draw(timestamp) {
 
 function showGameOver() {
     state.running = false;
-    if (gameBgm) gameBgm.pause();
+    // BGM完全リセット処理 (Amber指示 ③)
+    if (gameBgm) {
+        gameBgm.pause();
+        gameBgm.currentTime = 0;
+        gameBgm.volume = config.bgmVolume;
+    }
+
     if (feverTimeoutId) clearTimeout(feverTimeoutId);
     if (spinTimeoutId) clearTimeout(spinTimeoutId);
     if (missTimeoutId) {
         clearTimeout(missTimeoutId);
         missTimeoutId = null;
     }
+    
     document.getElementById('msg-title').textContent = "GAME OVER";
     document.getElementById('msg-body').textContent = `SCORE: ${Math.floor(state.scoreRaw)}`;
     el.overlay.style.display = 'flex';

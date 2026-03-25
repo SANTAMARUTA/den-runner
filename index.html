@@ -91,27 +91,39 @@
         #fever-bar-container { width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; }
         #fever-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff0, #f0f); transition: width 0.1s linear; }
 
-        /* オーバーレイとタイトル画面 (Amber指示 ①) */
+        /* オーバーレイ (Amber指示 ① ⑧ 調整) */
         #overlay {
             position: absolute; inset: 0; background: rgba(0,0,0,0.75);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 3000; color: #fff; text-align: center; padding: 20px;
+            z-index: 3000; color: #fff; text-align: center;
+            padding: 20px; /* 余白追加 */
+            overflow-y: auto; /* スクロール可能に */
         }
 
+        /* 画像サイズを高さ基準に変更 (Amber指示 ②) */
         #title-image {
-            width: 100%; max-width: 900px; border-radius: 12px; margin-bottom: 20px;
+            max-width: 90vw;
+            max-height: 65vh; /* 高さ優先 */
+            width: auto;
+            height: auto;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            object-fit: contain;
             box-shadow: 0 0 20px rgba(255,152,0,0.5);
         }
 
+        /* ボタンを常に見える位置に固定 (Amber指示 ③) */
         #start-btn {
             font-size: 24px; padding: 12px 50px; border-radius: 50px;
             background: linear-gradient(45deg, #ff9800, #ff5722); color: white;
             border: none; cursor: pointer; font-weight: bold;
             box-shadow: 0 6px 0 #bf360c; transition: transform 0.1s, box-shadow 0.1s;
+            margin-top: 15px;
+            position: relative;
+            z-index: 10;
         }
         #start-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #bf360c; }
 
-        /* 結果画面 (Amber指示 ②⑨) */
         #result {
             display: none; width: 100%; max-width: 500px; padding: 30px;
             background: rgba(255,255,255,0.1); border-radius: 20px; border: 2px solid rgba(255,255,255,0.2);
@@ -149,13 +161,10 @@
             <div id="fever-bar-container"><div id="fever-bar"></div></div>
         </div>
 
-        <!-- 統合オーバーレイ (指示 ⑧) -->
         <div id="overlay">
-            <!-- タイトル状態 (指示 ①) -->
             <img id="title-image" src="DENrunnertop.png" alt="DENRUNNER">
             <button id="start-btn">GAME START</button>
 
-            <!-- 結果状態 (指示 ②) -->
             <div id="result">
                 <h2>GAME RESULT</h2>
                 <p id="res-tech"></p>
@@ -170,13 +179,12 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v6.0)
+ * Denrunner: Masterpiece Edition (v6.1)
  * 監修: アンバー / 実装: ヘルメス
  * 修正点：
- * 1. トップ画面を画像(DENrunnertop.png)に差し替え
- * 2. 100点満点の評価システムと89点偏重ロジックの実装
- * 3. ゲーム終了後のRESULT画面UIの追加
- * 4. リトライ処理のlocation.reload対応
+ * 1. overlay をスクロール可能にし、パディングを追加
+ * 2. タイトル画像を高さ基準(max-height: 65vh)にし、モバイルでのボタン押し出しを防止
+ * 3. start-btn の配置と優先順位を最適化
  */
 
 const config = {
@@ -234,41 +242,24 @@ function createStompEffect(x, y) {
     }
 }
 
-/**
- * 評価ロジック (Amber指示 ④⑤)
- */
 function calculateResult() {
-    let base = 87 + Math.random() * 5; // 87〜92中心
-    if (Math.random() < 0.3) base = 89; // 89点が出やすい (指示 30%確率)
+    let base = 87 + Math.random() * 5; 
+    if (Math.random() < 0.3) base = 89; 
     let total = Math.round(base);
-    if (total < 40) total = 40; // 最低保証
+    if (total < 40) total = 40; 
     return total;
 }
 
 function generateDetailScores(total) {
-    // 合計点に微弱なランダム性を加味
     const offset = () => (Math.random() * 6 - 3);
-    return {
-        tech: total + offset(),
-        attack: total + offset(),
-        jump: total + offset(),
-        ruby: total + offset()
-    };
+    return { tech: total + offset(), attack: total + offset(), jump: total + offset(), ruby: total + offset() };
 }
 
-/**
- * 結果表示処理 (Amber指示 ⑥)
- */
 function showResult() {
     const total = calculateResult();
     const detail = generateDetailScores(total);
-
-    // タイトル要素を隠して結果を表示
-    el.startBtn.style.display = 'none';
-    el.titleImg.style.display = 'none';
-    el.overlay.style.display = 'flex';
-    el.resultDiv.style.display = 'block';
-
+    el.startBtn.style.display = 'none'; el.titleImg.style.display = 'none';
+    el.overlay.style.display = 'flex'; el.resultDiv.style.display = 'block';
     document.getElementById('res-tech').textContent = "テクニック：" + Math.round(detail.tech) + "点";
     document.getElementById('res-attack').textContent = "アタック：" + Math.round(detail.attack) + "点";
     document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(detail.jump) + "点";
@@ -280,13 +271,9 @@ function init() {
     window.addEventListener('resize', checkOrientation);
     window.addEventListener('orientationchange', checkOrientation);
     checkOrientation();
-
     gameBgm = new Audio(assets.bgm); gameBgm.loop = true;
     el.startBtn.addEventListener('click', (e) => { e.stopPropagation(); startGame(); });
-    
-    // リトライ処理 (Amber指示 ⑦)
     el.retryBtn.onclick = () => { location.reload(); };
-
     el.input.addEventListener('pointerdown', handleInput);
     preloadAssets();
 }
@@ -297,13 +284,11 @@ function preloadAssets() {
         img.onload = () => assetStatus[key] = true;
         img.onerror = () => assetStatus[key] = false;
     });
-    const titleImg = new Image(); titleImg.src = assets.title;
 }
 
 function startGame() {
     if (state.running) return;
     playStartSe();
-
     if (gameBgm) {
         gameBgm.currentTime = 0; gameBgm.volume = 0; gameBgm.play().catch(()=>{});
         let v = 0;
@@ -312,19 +297,12 @@ function startGame() {
             if (v >= config.bgmVolume) clearInterval(fade);
         }, 50);
     }
-
-    if (feverTimeoutId) clearTimeout(feverTimeoutId);
-    if (spinTimeoutId) clearTimeout(spinTimeoutId);
-    if (missTimeoutId) clearTimeout(missTimeoutId);
+    if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId); if (missTimeoutId) clearTimeout(missTimeoutId);
     feverTimeoutId = spinTimeoutId = missTimeoutId = null;
-
     state = { running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, isAboveHole: false, firstHoleSpawned: false };
-
-    el.player.classList.remove('player-spin-anim');
-    currentPlayerImageKey = null; currentImgTag = 'main';
+    el.player.classList.remove('player-spin-anim'); currentPlayerImageKey = null; currentImgTag = 'main';
     el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0;
     setPlayerImage('player'); 
-
     el.overlay.style.display = 'none';
     el.container.classList.remove('fever-mode');
     document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole, .stomp-effect').forEach(n => n.remove());
@@ -335,20 +313,16 @@ function handleInput() {
     if (!state.running || state.isMissed || !isLandscape || state.jumps >= 2) return;
     if (state.jumps === 1) {
         if (spinTimeoutId) clearTimeout(spinTimeoutId);
-        el.player.classList.remove('player-spin-anim');
-        void el.player.offsetWidth; 
-        el.player.classList.add('player-spin-anim');
-        spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
+        el.player.classList.remove('player-spin-anim'); void el.player.offsetWidth; 
+        el.player.classList.add('player-spin-anim'); spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
     }
-    state.velocityY = config.jumpPower; state.jumps++;
-    setPlayerImage('playerJump');
+    state.velocityY = config.jumpPower; state.jumps++; setPlayerImage('playerJump');
 }
 
 function setPlayerImage(key) {
     if (currentPlayerImageKey === key) return;
     let nextSrc = null;
     if (assetStatus[key]) nextSrc = assets[key]; else if (key !== 'player' && assetStatus.player) { nextSrc = assets.player; key = 'player'; } else return;
-
     if (currentImgTag === 'main') {
         el.playerImgSub.src = nextSrc; el.playerImgSub.style.opacity = 1; el.playerImgMain.style.opacity = 0; currentImgTag = 'sub';
     } else {
@@ -373,22 +347,18 @@ function update(dt, ds, timestamp) {
     if (!state.isFever) state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
     const currentTotalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
     state.velocityY += config.gravity * ds; state.playerY -= state.velocityY * ds;
-
     if (state.playerY <= 0) {
         if (!state.isAboveHole) {
             state.playerY = 0; state.velocityY = 0; state.jumps = 0;
             if (!state.isMissed && currentPlayerImageKey !== 'player') setPlayerImage('player');
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
-
     const moveDist = currentTotalSpeed * ds;
     state.distance += moveDist; state.scoreRaw += moveDist * config.scoreRate;
     const bgPos = (state.distance % window.innerWidth);
     el.layerMid.style.transform = `translateX(${-bgPos * 0.4}px)`; el.layerBack.style.transform = `translateX(${-bgPos * 0.15}px)`; el.ground.style.transform = `translateX(${-bgPos}px)`;
-
     state.itemTimer += dt;
     while (state.itemTimer >= config.itemInterval) { createEntity('item'); state.itemTimer -= config.itemInterval; }
-
     if (!state.isFever) {
         state.obsTimer += dt; state.stompTimer += dt; state.flyTimer += dt; state.holeTimer += dt;
         while (state.obsTimer >= config.obsInterval) { createEntity('obstacle'); state.obsTimer -= config.obsInterval; }
@@ -423,11 +393,9 @@ function updateEntities(ds, speed, timestamp) {
     const pRect = el.player.getBoundingClientRect();
     const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole');
     state.isAboveHole = false;
-
     for (const ent of entities) {
         let x = parseFloat(ent.dataset.x); x -= (speed / 12) * ds; ent.dataset.x = x;
         let hitMargin = 14; if (ent.classList.contains('enemy-auto')) hitMargin = 28; if (ent.classList.contains('enemy-satoru')) hitMargin = 28; if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
-        
         let wobbleX = 0; if (ent.classList.contains('enemy-satoru')) { const phase = parseFloat(ent.dataset.phase || 0); wobbleX = Math.sin(timestamp / 150 + phase) * 10; }
         let autoY = 0;
         if (ent.classList.contains('enemy-auto') && !state.isMissed) {
@@ -438,10 +406,8 @@ function updateEntities(ds, speed, timestamp) {
         }
         let bobY = 0; if (ent.classList.contains('enemy-arakatsu')) bobY = Math.sin(timestamp / 200) * 15;
         ent.style.left = `calc(${x}% + ${wobbleX}px)`; ent.style.transform = `translateY(${-autoY + bobY}px)`;
-
         const eRect = ent.getBoundingClientRect();
         if (ent.classList.contains('hole')) { const playerCenterX = pRect.left + pRect.width / 2; if (playerCenterX > eRect.left && playerCenterX < eRect.right) state.isAboveHole = true; }
-
         if (!ent.classList.contains('hole') && pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left && pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
             if (ent.classList.contains('item')) {
                 setTimeout(() => playItemSe(), 30);
@@ -496,8 +462,6 @@ function showGameOver() {
     if (gameBgm) { gameBgm.pause(); gameBgm.currentTime = 0; gameBgm.volume = config.bgmVolume; }
     if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId);
     if (missTimeoutId) { clearTimeout(missTimeoutId); missTimeoutId = null; }
-    
-    // 結果画面の表示 (Amber指示 ③)
     setTimeout(showResult, 800);
 }
 

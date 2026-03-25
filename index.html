@@ -91,19 +91,17 @@
         #fever-bar-container { width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; }
         #fever-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff0, #f0f); transition: width 0.1s linear; }
 
-        /* オーバーレイ (Amber指示 ① ⑧ 調整) */
         #overlay {
             position: absolute; inset: 0; background: rgba(0,0,0,0.75);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 3000; color: #fff; text-align: center;
-            padding: 20px; /* 余白追加 */
-            overflow-y: auto; /* スクロール可能に */
+            padding: 20px;
+            overflow-y: auto;
         }
 
-        /* 画像サイズを高さ基準に変更 (Amber指示 ②) */
         #title-image {
             max-width: 90vw;
-            max-height: 65vh; /* 高さ優先 */
+            max-height: 65vh;
             width: auto;
             height: auto;
             border-radius: 12px;
@@ -112,7 +110,6 @@
             box-shadow: 0 0 20px rgba(255,152,0,0.5);
         }
 
-        /* ボタンを常に見える位置に固定 (Amber指示 ③) */
         #start-btn {
             font-size: 24px; padding: 12px 50px; border-radius: 50px;
             background: linear-gradient(45deg, #ff9800, #ff5722); color: white;
@@ -131,7 +128,7 @@
         }
         #result h2 { font-size: 28px; margin-bottom: 20px; color: #ffeb3b; }
         #result p { font-size: 22px; margin-bottom: 10px; font-weight: bold; }
-        #res-total { font-size: 52px; color: #ffeb3b; margin: 20px 0; text-shadow: 0 0 15px #fbc02d; }
+        #res-total { font-size: 42px; color: #ffeb3b; margin: 20px 0; text-shadow: 0 0 15px #fbc02d; transition: color 0.3s; }
         #retry-btn {
             margin-top: 20px; font-size: 20px; padding: 10px 40px; border-radius: 10px;
             background: #fff; color: #333; border: none; cursor: pointer; font-weight: bold;
@@ -179,12 +176,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v6.1)
+ * Denrunner: Masterpiece Edition (v7.0)
  * 監修: アンバー / 実装: ヘルメス
- * 修正点：
- * 1. overlay をスクロール可能にし、パディングを追加
- * 2. タイトル画像を高さ基準(max-height: 65vh)にし、モバイルでのボタン押し出しを防止
- * 3. start-btn の配置と優先順位を最適化
+ * 最終完成仕様：ハイブリッド評価システム
  */
 
 const config = {
@@ -207,7 +201,14 @@ const assetStatus = { player: false, playerJump: false, playerMiss: false, ruby:
 let feverTimeoutId = null, spinTimeoutId = null, missTimeoutId = null, isLandscape = true, gameBgm = null, currentPlayerImageKey = null; 
 let currentImgTag = 'main';
 
-let state = { running: false, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: 0, itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, isAboveHole: false, firstHoleSpawned: false };
+// 評価計測用パラメータ追加
+let state = { 
+    running: false, isMissed: false, distance: 0, scoreRaw: 0, 
+    speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
+    lastTime: 0, itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
+    isAboveHole: false, firstHoleSpawned: false,
+    playTime: 0, stompCount: 0 // 新規計測パラメータ
+};
 
 const el = {
     container: document.getElementById('game-container'), input: document.getElementById('input-layer'),
@@ -242,29 +243,75 @@ function createStompEffect(x, y) {
     }
 }
 
+/**
+ * ハイブリッド評価システム (最終仕様)
+ */
+
+// ① 基本スコア算出
+function getBaseScore() {
+    const r = Math.random();
+    if (r < 0.30) return 89;
+    if (r < 0.55) return 88 + Math.floor(Math.random() * 3); // 88〜90
+    if (r < 0.75) return 87 + Math.floor(Math.random() * 5); // 87〜91
+    if (r < 0.90) return 90 + Math.floor(Math.random() * 3); // 90〜92
+    return 92 + Math.floor(Math.random() * 3); // 92〜94 (レア)
+}
+
+// ② 実力補正
+function getSkillBonus() {
+    let bonus = 0;
+    if (state.scoreRaw > 30000) bonus += 2;
+    if (state.scoreRaw > 40000) bonus += 3;
+    if (state.playTime > 40) bonus += 2;
+    if (state.stompCount > 15) bonus += 1;
+    return bonus;
+}
+
+// ③ 最終スコア算出
 function calculateResult() {
-    let base = 87 + Math.random() * 5; 
-    if (Math.random() < 0.3) base = 89; 
-    let total = Math.round(base);
-    if (total < 40) total = 40; 
+    let total = getBaseScore();
+    total += getSkillBonus();
+    // 100点条件 (特別)
+    if (state.playTime > 60) total = 100;
+    if (total > 100) total = 100;
+    if (total < 40) total = 40;
     return total;
 }
 
 function generateDetailScores(total) {
     const offset = () => (Math.random() * 6 - 3);
-    return { tech: total + offset(), attack: total + offset(), jump: total + offset(), ruby: total + offset() };
+    return {
+        tech: total + offset(),
+        attack: total + offset(),
+        jump: total + offset(),
+        ruby: total + offset()
+    };
 }
 
 function showResult() {
     const total = calculateResult();
     const detail = generateDetailScores(total);
+    const resTotalEl = document.getElementById('res-total');
+
     el.startBtn.style.display = 'none'; el.titleImg.style.display = 'none';
     el.overlay.style.display = 'flex'; el.resultDiv.style.display = 'block';
+
     document.getElementById('res-tech').textContent = "テクニック：" + Math.round(detail.tech) + "点";
     document.getElementById('res-attack').textContent = "アタック：" + Math.round(detail.attack) + "点";
     document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(detail.jump) + "点";
     document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(detail.ruby) + "点";
-    document.getElementById('res-total').textContent = "TOTAL：" + total + "点";
+    
+    // 表示の演出
+    resTotalEl.textContent = "TOTAL：" + total + "点";
+    resTotalEl.style.color = "#ffeb3b"; // デフォルト色リセット
+
+    if (total >= 95) {
+        resTotalEl.textContent += " ★EXCELLENT★";
+    }
+    if (total === 100) {
+        resTotalEl.textContent = "TOTAL：100点 ★PERFECT★";
+        resTotalEl.style.color = "#ffd700"; // 金色
+    }
 }
 
 function init() {
@@ -299,7 +346,16 @@ function startGame() {
     }
     if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId); if (missTimeoutId) clearTimeout(missTimeoutId);
     feverTimeoutId = spinTimeoutId = missTimeoutId = null;
-    state = { running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, isAboveHole: false, firstHoleSpawned: false };
+    
+    // 評価計測の初期化
+    state = { 
+        running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, 
+        playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), 
+        itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
+        isAboveHole: false, firstHoleSpawned: false,
+        playTime: 0, stompCount: 0 // リセット
+    };
+
     el.player.classList.remove('player-spin-anim'); currentPlayerImageKey = null; currentImgTag = 'main';
     el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0;
     setPlayerImage('player'); 
@@ -344,6 +400,10 @@ function gameLoop(timestamp) {
 
 function update(dt, ds, timestamp) {
     if (state.isMissed) { state.velocityY += config.gravity * ds; state.playerY -= state.velocityY * ds; return; }
+    
+    // 生存時間の計測 (秒換算)
+    state.playTime += dt / 1000;
+
     if (!state.isFever) state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
     const currentTotalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
     state.velocityY += config.gravity * ds; state.playerY -= state.velocityY * ds;
@@ -421,6 +481,7 @@ function updateEntities(ds, speed, timestamp) {
                     const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
                     if (isFalling && playerBottom < enemyTopLimit + 20) {
                         playStompSe(); createStompEffect(eRect.left + eRect.width/2, eRect.top);
+                        state.stompCount++; // 踏みつけカウント加算
                         ent.remove(); state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
                         if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
                     } else if (!state.isFever) { triggerMiss(); return; }

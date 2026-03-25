@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition</title>
+    <title>DENRUNNER - Final Masterpiece</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -34,7 +34,6 @@
 
         #input-layer { position: absolute; inset: 0; z-index: 1500; }
 
-        /* 主人公クロスフェード対応 (Amber指示 ①) */
         #player {
             position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
             transform-origin: center center;
@@ -45,7 +44,7 @@
         }
         #player img {
             position: absolute; width: 100%; height: 100%; object-fit: contain; pointer-events: none;
-            transition: opacity 0.15s linear; /* Amber指示 ① */
+            transition: opacity 0.15s linear;
         }
         #player-img-main { opacity: 1; z-index: 2; }
         #player-img-sub { opacity: 0; z-index: 1; }
@@ -61,7 +60,6 @@
         }
 
         .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
-        
         .enemy-auto { width: 110px; height: 110px; z-index: 40; }
         .enemy-satoru { width: 115px; height: 100px; z-index: 45; }
         .enemy-arakatsu { width: 105px; height: 85px; z-index: 48; }
@@ -77,7 +75,6 @@
             box-shadow: inset 0 10px 20px rgba(0,0,0,0.8);
         }
 
-        /* 踏みつけエフェクト (Amber指示 ⑤でtransform安定化) */
         .stomp-effect {
             position: absolute; font-size: 32px; pointer-events: none; z-index: 200;
             animation: stompPop 0.4s ease-out forwards; color: #fff;
@@ -94,17 +91,39 @@
         #fever-bar-container { width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; }
         #fever-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff0, #f0f); transition: width 0.1s linear; }
 
+        /* オーバーレイとタイトル画面 (Amber指示 ①) */
         #overlay {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.7);
+            position: absolute; inset: 0; background: rgba(0,0,0,0.75);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 3000; color: #fff; text-align: center; padding: 20px;
         }
-        button {
-            padding: 15px 45px; font-size: 24px; cursor: pointer; border: none;
-            border-radius: 50px; background: #ffeb3b; color: #333; font-weight: bold;
-            margin-top: 20px; pointer-events: auto; box-shadow: 0 4px 0 #c4a000;
+
+        #title-image {
+            width: 100%; max-width: 900px; border-radius: 12px; margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(255,152,0,0.5);
         }
-        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #c4a000; }
+
+        #start-btn {
+            font-size: 24px; padding: 12px 50px; border-radius: 50px;
+            background: linear-gradient(45deg, #ff9800, #ff5722); color: white;
+            border: none; cursor: pointer; font-weight: bold;
+            box-shadow: 0 6px 0 #bf360c; transition: transform 0.1s, box-shadow 0.1s;
+        }
+        #start-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #bf360c; }
+
+        /* 結果画面 (Amber指示 ②⑨) */
+        #result {
+            display: none; width: 100%; max-width: 500px; padding: 30px;
+            background: rgba(255,255,255,0.1); border-radius: 20px; border: 2px solid rgba(255,255,255,0.2);
+            color: white; text-align: center;
+        }
+        #result h2 { font-size: 28px; margin-bottom: 20px; color: #ffeb3b; }
+        #result p { font-size: 22px; margin-bottom: 10px; font-weight: bold; }
+        #res-total { font-size: 52px; color: #ffeb3b; margin: 20px 0; text-shadow: 0 0 15px #fbc02d; }
+        #retry-btn {
+            margin-top: 20px; font-size: 20px; padding: 10px 40px; border-radius: 10px;
+            background: #fff; color: #333; border: none; cursor: pointer; font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -121,7 +140,6 @@
         <div id="input-layer"></div>
 
         <div id="player">
-            <!-- クロスフェード用の2つのimg (Amber指示 ①) -->
             <img id="player-img-main" src="" alt="">
             <img id="player-img-sub" src="" alt="">
         </div>
@@ -131,27 +149,34 @@
             <div id="fever-bar-container"><div id="fever-bar"></div></div>
         </div>
 
+        <!-- 統合オーバーレイ (指示 ⑧) -->
         <div id="overlay">
-            <h1 id="msg-title">DENRUNNER</h1>
-            <p id="msg-body">
-                敵は上から踏んづけよう！<br>
-                横からぶつかるとミス！<br>
-                落とし穴に気をつけて！
-            </p>
+            <!-- タイトル状態 (指示 ①) -->
+            <img id="title-image" src="DENrunnertop.png" alt="DENRUNNER">
             <button id="start-btn">GAME START</button>
+
+            <!-- 結果状態 (指示 ②) -->
+            <div id="result">
+                <h2>GAME RESULT</h2>
+                <p id="res-tech"></p>
+                <p id="res-attack"></p>
+                <p id="res-jump"></p>
+                <p id="res-ruby"></p>
+                <h1 id="res-total"></h1>
+                <button id="retry-btn">もう一度</button>
+            </div>
         </div>
     </div>
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v5.1)
+ * Denrunner: Masterpiece Edition (v6.0)
  * 監修: アンバー / 実装: ヘルメス
  * 修正点：
- * 1. <img>タグを2つ用意したクロスフェード表示により点滅を完全除去 (Amber指示 ①)
- * 2. 踏みつけエフェクトの多重化・ランダムカラー対応 (Amber指示 ③⑤)
- * 3. サトルさんの動きをdataset.phaseにより自然化 (Amber指示 ②)
- * 4. サウンド同期の微調整 (Amber指示 ④)
- * 5. BGMのフェードインをより滑らかに (Amber指示 ④)
+ * 1. トップ画面を画像(DENrunnertop.png)に差し替え
+ * 2. 100点満点の評価システムと89点偏重ロジックの実装
+ * 3. ゲーム終了後のRESULT画面UIの追加
+ * 4. リトライ処理のlocation.reload対応
  */
 
 const config = {
@@ -165,25 +190,25 @@ const config = {
 const assets = {
     player: 'DENさん走行時.gif', playerJump: 'DENさんジャンプ.png', playerMiss: 'DENさんクラッシュ.png',
     ruby: 'イザックるびぃ.png', enemyAuto: 'オート.png', enemySatoru: 'サトルさん.png', enemyArakatsu: 'アラカツさん.png',
-    bgm: 'DEN RUNNER Main Loop.wav', stompSe: '踏む音.mp3', itemSe: 'るびぃゲット.mp3', missSe: 'やられ音.mp3', startSe: 'スタート音.mp3'
+    bgm: 'DEN RUNNER Main Loop.wav', stompSe: '踏む音.mp3', itemSe: 'るびぃゲット.mp3', missSe: 'やられ音.mp3', startSe: 'スタート音.mp3',
+    title: 'DENrunnertop.png'
 };
 
 const assetStatus = { player: false, playerJump: false, playerMiss: false, ruby: false, enemyAuto: false, enemySatoru: false, enemyArakatsu: false };
 
 let feverTimeoutId = null, spinTimeoutId = null, missTimeoutId = null, isLandscape = true, gameBgm = null, currentPlayerImageKey = null; 
-let currentImgTag = 'main'; // 現在前面のimgタグ (Amber指示 ①)
+let currentImgTag = 'main';
 
 let state = { running: false, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: 0, itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, isAboveHole: false, firstHoleSpawned: false };
 
 const el = {
     container: document.getElementById('game-container'), input: document.getElementById('input-layer'),
-    player: document.getElementById('player'), 
-    playerImgMain: document.getElementById('player-img-main'),
-    playerImgSub: document.getElementById('player-img-sub'),
+    player: document.getElementById('player'), playerImgMain: document.getElementById('player-img-main'), playerImgSub: document.getElementById('player-img-sub'),
     ground: document.getElementById('ground'), score: document.getElementById('score-val'),
     feverBar: document.getElementById('fever-bar'), overlay: document.getElementById('overlay'),
-    startBtn: document.getElementById('start-btn'), layerMid: document.getElementById('layer-mid'),
-    layerBack: document.getElementById('layer-back'), notice: document.getElementById('rotate-notice')
+    startBtn: document.getElementById('start-btn'), titleImg: document.getElementById('title-image'),
+    resultDiv: document.getElementById('result'), retryBtn: document.getElementById('retry-btn'),
+    layerMid: document.getElementById('layer-mid'), layerBack: document.getElementById('layer-back'), notice: document.getElementById('rotate-notice')
 };
 
 function checkOrientation() {
@@ -197,31 +222,71 @@ function playItemSe()  { playSe(assets.itemSe, config.itemSeVolume); }
 function playMissSe()  { playSe(assets.missSe, config.missSeVolume); }
 function playStartSe() { playSe(assets.startSe, config.startSeVolume); }
 
-/**
- * 踏みつけエフェクト強化 (Amber指示 ③⑤)
- * 色とりどりの★をランダム位置に。
- */
 function createStompEffect(x, y) {
     const count = 2 + Math.floor(Math.random() * 2);
-    const colors = ['#fff', '#ff0', '#0ff']; // 白、黄、水色
+    const colors = ['#fff', '#ff0', '#0ff'];
     for (let i = 0; i < count; i++) {
         const fx = document.createElement('div');
-        fx.className = 'stomp-effect';
-        fx.textContent = '★';
+        fx.className = 'stomp-effect'; fx.textContent = '★';
         fx.style.color = colors[Math.floor(Math.random() * colors.length)];
-        fx.style.left = (x + (Math.random() - 0.5) * 40) + 'px';
-        fx.style.top = (y + (Math.random() - 0.5) * 30) + 'px';
-        el.container.appendChild(fx);
-        setTimeout(() => fx.remove(), 400);
+        fx.style.left = (x + (Math.random() - 0.5) * 40) + 'px'; fx.style.top = (y + (Math.random() - 0.5) * 30) + 'px';
+        el.container.appendChild(fx); setTimeout(() => fx.remove(), 400);
     }
+}
+
+/**
+ * 評価ロジック (Amber指示 ④⑤)
+ */
+function calculateResult() {
+    let base = 87 + Math.random() * 5; // 87〜92中心
+    if (Math.random() < 0.3) base = 89; // 89点が出やすい (指示 30%確率)
+    let total = Math.round(base);
+    if (total < 40) total = 40; // 最低保証
+    return total;
+}
+
+function generateDetailScores(total) {
+    // 合計点に微弱なランダム性を加味
+    const offset = () => (Math.random() * 6 - 3);
+    return {
+        tech: total + offset(),
+        attack: total + offset(),
+        jump: total + offset(),
+        ruby: total + offset()
+    };
+}
+
+/**
+ * 結果表示処理 (Amber指示 ⑥)
+ */
+function showResult() {
+    const total = calculateResult();
+    const detail = generateDetailScores(total);
+
+    // タイトル要素を隠して結果を表示
+    el.startBtn.style.display = 'none';
+    el.titleImg.style.display = 'none';
+    el.overlay.style.display = 'flex';
+    el.resultDiv.style.display = 'block';
+
+    document.getElementById('res-tech').textContent = "テクニック：" + Math.round(detail.tech) + "点";
+    document.getElementById('res-attack').textContent = "アタック：" + Math.round(detail.attack) + "点";
+    document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(detail.jump) + "点";
+    document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(detail.ruby) + "点";
+    document.getElementById('res-total').textContent = "TOTAL：" + total + "点";
 }
 
 function init() {
     window.addEventListener('resize', checkOrientation);
     window.addEventListener('orientationchange', checkOrientation);
     checkOrientation();
+
     gameBgm = new Audio(assets.bgm); gameBgm.loop = true;
     el.startBtn.addEventListener('click', (e) => { e.stopPropagation(); startGame(); });
+    
+    // リトライ処理 (Amber指示 ⑦)
+    el.retryBtn.onclick = () => { location.reload(); };
+
     el.input.addEventListener('pointerdown', handleInput);
     preloadAssets();
 }
@@ -232,6 +297,7 @@ function preloadAssets() {
         img.onload = () => assetStatus[key] = true;
         img.onerror = () => assetStatus[key] = false;
     });
+    const titleImg = new Image(); titleImg.src = assets.title;
 }
 
 function startGame() {
@@ -239,13 +305,10 @@ function startGame() {
     playStartSe();
 
     if (gameBgm) {
-        gameBgm.currentTime = 0;
-        gameBgm.volume = 0; 
-        gameBgm.play().catch(()=>{});
+        gameBgm.currentTime = 0; gameBgm.volume = 0; gameBgm.play().catch(()=>{});
         let v = 0;
         const fade = setInterval(() => {
-            v += 0.02; // より滑らかに (Amber指示 ④)
-            gameBgm.volume = Math.min(v, config.bgmVolume);
+            v += 0.02; gameBgm.volume = Math.min(v, config.bgmVolume);
             if (v >= config.bgmVolume) clearInterval(fade);
         }, 50);
     }
@@ -258,10 +321,8 @@ function startGame() {
     state = { running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, isAboveHole: false, firstHoleSpawned: false };
 
     el.player.classList.remove('player-spin-anim');
-    currentPlayerImageKey = null; 
-    currentImgTag = 'main';
-    el.playerImgMain.style.opacity = 1;
-    el.playerImgSub.style.opacity = 0;
+    currentPlayerImageKey = null; currentImgTag = 'main';
+    el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0;
     setPlayerImage('player'); 
 
     el.overlay.style.display = 'none';
@@ -283,36 +344,16 @@ function handleInput() {
     setPlayerImage('playerJump');
 }
 
-/**
- * プレイヤー表示制御：クロスフェード実装 (Amber指示 ①)
- */
 function setPlayerImage(key) {
     if (currentPlayerImageKey === key) return;
-
     let nextSrc = null;
-    if (assetStatus[key]) {
-        nextSrc = assets[key];
-    } else if (key !== 'player' && assetStatus.player) {
-        nextSrc = assets.player;
-        key = 'player';
-    } else {
-        console.warn('player fallback used:', key);
-        return;
-    }
+    if (assetStatus[key]) nextSrc = assets[key]; else if (key !== 'player' && assetStatus.player) { nextSrc = assets.player; key = 'player'; } else return;
 
-    // メインとサブを切り替えてフェード
     if (currentImgTag === 'main') {
-        el.playerImgSub.src = nextSrc;
-        el.playerImgSub.style.opacity = 1;
-        el.playerImgMain.style.opacity = 0;
-        currentImgTag = 'sub';
+        el.playerImgSub.src = nextSrc; el.playerImgSub.style.opacity = 1; el.playerImgMain.style.opacity = 0; currentImgTag = 'sub';
     } else {
-        el.playerImgMain.src = nextSrc;
-        el.playerImgMain.style.opacity = 1;
-        el.playerImgSub.style.opacity = 0;
-        currentImgTag = 'main';
+        el.playerImgMain.src = nextSrc; el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0; currentImgTag = 'main';
     }
-
     currentPlayerImageKey = key;
 }
 
@@ -368,8 +409,7 @@ function createEntity(type) {
         obj.classList.add('enemy-auto'); if (assetStatus.enemyAuto) obj.style.backgroundImage = `url(${assets.enemyAuto})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = config.groundHeight + '%'; obj.dataset.yOffset = 0; obj.dataset.yVel = 0; obj.dataset.jumpTimer = Math.random() * 2000;
     } else if (type === 'stompEnemy') {
-        obj.classList.add('enemy-satoru'); 
-        obj.dataset.phase = Math.random() * Math.PI * 2; // 位相付与 (Amber指示 ②)
+        obj.classList.add('enemy-satoru'); obj.dataset.phase = Math.random() * Math.PI * 2;
         if (assetStatus.enemySatoru) obj.style.backgroundImage = `url(${assets.enemySatoru})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = config.groundHeight + '%';
     } else if (type === 'flyEnemy') {
@@ -388,13 +428,7 @@ function updateEntities(ds, speed, timestamp) {
         let x = parseFloat(ent.dataset.x); x -= (speed / 12) * ds; ent.dataset.x = x;
         let hitMargin = 14; if (ent.classList.contains('enemy-auto')) hitMargin = 28; if (ent.classList.contains('enemy-satoru')) hitMargin = 28; if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
         
-        // 挙動自然化 (Amber指示 ②)
-        let wobbleX = 0; 
-        if (ent.classList.contains('enemy-satoru')) {
-            const phase = parseFloat(ent.dataset.phase || 0);
-            wobbleX = Math.sin(timestamp / 150 + phase) * 10;
-        }
-
+        let wobbleX = 0; if (ent.classList.contains('enemy-satoru')) { const phase = parseFloat(ent.dataset.phase || 0); wobbleX = Math.sin(timestamp / 150 + phase) * 10; }
         let autoY = 0;
         if (ent.classList.contains('enemy-auto') && !state.isMissed) {
             let yVel = parseFloat(ent.dataset.yVel || 0), yOffset = parseFloat(ent.dataset.yOffset || 0), jTimer = parseFloat(ent.dataset.jumpTimer || 0);
@@ -410,7 +444,7 @@ function updateEntities(ds, speed, timestamp) {
 
         if (!ent.classList.contains('hole') && pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left && pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
             if (ent.classList.contains('item')) {
-                setTimeout(() => playItemSe(), 30); // 微ディレイ (Amber指示 ④)
+                setTimeout(() => playItemSe(), 30);
                 ent.remove(); state.scoreRaw += 500;
                 if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
             } else {
@@ -431,13 +465,9 @@ function updateEntities(ds, speed, timestamp) {
     }
 }
 
-/**
- * ミス演出 (Amber指示 ③)
- * 視覚(クロスフェード開始)と音を完全に一致させる
- */
 function triggerMiss() {
     if (state.isMissed) return;
-    setPlayerImage('playerMiss'); // Amber指示 ③
+    setPlayerImage('playerMiss');
     playMissSe(); 
     if (gameBgm) gameBgm.volume = config.bgmVolume * 0.2;
     if (missTimeoutId) { clearTimeout(missTimeoutId); missTimeoutId = null; }
@@ -466,9 +496,9 @@ function showGameOver() {
     if (gameBgm) { gameBgm.pause(); gameBgm.currentTime = 0; gameBgm.volume = config.bgmVolume; }
     if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId);
     if (missTimeoutId) { clearTimeout(missTimeoutId); missTimeoutId = null; }
-    document.getElementById('msg-title').textContent = "GAME OVER";
-    document.getElementById('msg-body').textContent = `SCORE: ${Math.floor(state.scoreRaw)}`;
-    el.overlay.style.display = 'flex';
+    
+    // 結果画面の表示 (Amber指示 ③)
+    setTimeout(showResult, 800);
 }
 
 init();

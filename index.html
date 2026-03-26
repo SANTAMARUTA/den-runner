@@ -176,9 +176,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v7.1)
+ * Denrunner: Masterpiece Edition (v7.2)
  * 監修: アンバー / 実装: ヘルメス
- * 完成仕様：実力ベース＋演出丸めハイブリッド評価システム
+ * 完成仕様：評価スコア小数バグの完全修正版
  */
 
 const config = {
@@ -243,18 +243,16 @@ function createStompEffect(x, y) {
 }
 
 /**
- * --- アンバー監修：新評価システムロジック ---
+ * --- アンバー監修：評価システムロジック (小数バグ修正版) ---
  */
 
-// プレイ成立チェック (指示 ①)
 function isValidPlay() {
-    if (state.playTime < 5) return false;    // 5秒未満
-    if (state.scoreRaw < 1000) return false; // スコア1000未満
-    if (state.stompCount === 0) return false; // 踏みなし
+    if (state.playTime < 5) return false;
+    if (state.scoreRaw < 1000) return false;
+    if (state.stompCount === 0) return false;
     return true;
 }
 
-// 技術点個別算出 (指示 ①)
 function calculateSkillScores() {
     const technique = Math.min(100, 60 + state.stompCount * 2);
     const attack = Math.min(100, 50 + state.stompCount * 3);
@@ -263,7 +261,6 @@ function calculateSkillScores() {
     return { technique, attack, jump, ruby };
 }
 
-// 総合点（実力値） (指示 ②)
 function calculateRawTotal(skill) {
     return Math.round(
         skill.technique * 0.25 +
@@ -273,9 +270,8 @@ function calculateRawTotal(skill) {
     );
 }
 
-// 最終スコア調整（中毒性バイアス） (指示 ③)
 function adjustScore(raw) {
-    // 89ゾーン（広い）
+    // 89ゾーン
     if (raw >= 80 && raw <= 95) {
         const bias = Math.random();
         if (bias < 0.5) return 89;
@@ -288,50 +284,57 @@ function adjustScore(raw) {
         if (state.playTime > 50) return 100;
         return 95 + Math.floor(Math.random() * 3);
     }
-    // 初心者（足切りは突破している状態）
+    // 初心者 (完全整数化 Amber指示)
     if (raw < 80) {
-        return Math.max(40, raw + Math.random() * 5);
+        return Math.max(40, raw + Math.floor(Math.random() * 5));
     }
     return raw;
 }
 
-// 評価計算メイン (指示 ②)
 function calculateResult() {
-    // プレイ不成立時 (指示 ②)
     if (!isValidPlay()) {
         return {
-            total: 45 + Math.floor(Math.random() * 5), // 45〜50
+            total: 45 + Math.floor(Math.random() * 5),
             skill: { technique: 40, attack: 40, jump: 40, ruby: 40 }
         };
     }
 
     const skill = calculateSkillScores();
     const raw = calculateRawTotal(skill);
-    const total = adjustScore(raw);
+    // 最終スコアを念のため丸める (Amber指示 ②)
+    const total = Math.round(adjustScore(raw)); 
     return { total, skill };
 }
 
-/**
- * 結果表示処理
- */
+function generateDetailScores(total) {
+    // オフセットも整数に (安全対策)
+    const offset = () => Math.floor(Math.random() * 7 - 3);
+    return { 
+        tech: total + offset(), 
+        attack: total + offset(), 
+        jump: total + offset(), 
+        ruby: total + offset() 
+    };
+}
+
 function showResult() {
     const resultData = calculateResult();
     const total = resultData.total;
-    const skill = resultData.skill;
+    const detail = generateDetailScores(total);
     const resTotalEl = document.getElementById('res-total');
 
     el.startBtn.style.display = 'none'; el.titleImg.style.display = 'none';
     el.overlay.style.display = 'flex'; el.resultDiv.style.display = 'block';
 
-    document.getElementById('res-tech').textContent = "テクニック：" + Math.round(skill.technique) + "点";
-    document.getElementById('res-attack').textContent = "アタック：" + Math.round(skill.attack) + "点";
-    document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(skill.jump) + "点";
-    document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(skill.ruby) + "点";
+    // 各項目も丸めて表示 (Amber指示 ③)
+    document.getElementById('res-tech').textContent = "テクニック：" + Math.round(detail.tech) + "点";
+    document.getElementById('res-attack').textContent = "アタック：" + Math.round(detail.attack) + "点";
+    document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(detail.jump) + "点";
+    document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(detail.ruby) + "点";
     
-    resTotalEl.textContent = "TOTAL：" + total + "点";
+    resTotalEl.textContent = "TOTAL：" + Math.round(total) + "点";
     resTotalEl.style.color = "#ffeb3b"; 
 
-    // 高得点演出
     if (total >= 95) {
         resTotalEl.textContent += " ★EXCELLENT★";
     }
@@ -373,15 +376,7 @@ function startGame() {
     }
     if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId); if (missTimeoutId) clearTimeout(missTimeoutId);
     feverTimeoutId = spinTimeoutId = missTimeoutId = null;
-    
-    state = { 
-        running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, 
-        playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), 
-        itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-        isAboveHole: false, firstHoleSpawned: false,
-        playTime: 0, stompCount: 0 
-    };
-
+    state = { running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, isAboveHole: false, firstHoleSpawned: false, playTime: 0, stompCount: 0 };
     el.player.classList.remove('player-spin-anim'); currentPlayerImageKey = null; currentImgTag = 'main';
     el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0;
     setPlayerImage('player'); 

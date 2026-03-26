@@ -128,7 +128,7 @@
         }
         #result h2 { font-size: 28px; margin-bottom: 20px; color: #ffeb3b; }
         #result p { font-size: 22px; margin-bottom: 10px; font-weight: bold; }
-        #res-total { font-size: 42px; color: #ffeb3b; margin: 20px 0; text-shadow: 0 0 15px #fbc02d; transition: color 0.3s; }
+        #res-total { font-size: 42px; color: #ffeb3b; margin: 20px 0; text-shadow: 0 0 15px #fbc02d; transition: color 0.3s, transform 0.3s; }
         #retry-btn {
             margin-top: 20px; font-size: 20px; padding: 10px 40px; border-radius: 10px;
             background: #fff; color: #333; border: none; cursor: pointer; font-weight: bold;
@@ -176,9 +176,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v7.0)
+ * Denrunner: Masterpiece Edition (v7.1)
  * 監修: アンバー / 実装: ヘルメス
- * 最終完成仕様：ハイブリッド評価システム
+ * 完成仕様：実力ベース＋演出丸めハイブリッド評価システム
  */
 
 const config = {
@@ -201,13 +201,12 @@ const assetStatus = { player: false, playerJump: false, playerMiss: false, ruby:
 let feverTimeoutId = null, spinTimeoutId = null, missTimeoutId = null, isLandscape = true, gameBgm = null, currentPlayerImageKey = null; 
 let currentImgTag = 'main';
 
-// 評価計測用パラメータ追加
 let state = { 
     running: false, isMissed: false, distance: 0, scoreRaw: 0, 
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
     lastTime: 0, itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
     isAboveHole: false, firstHoleSpawned: false,
-    playTime: 0, stompCount: 0 // 新規計測パラメータ
+    playTime: 0, stompCount: 0 
 };
 
 const el = {
@@ -244,73 +243,101 @@ function createStompEffect(x, y) {
 }
 
 /**
- * ハイブリッド評価システム (最終仕様)
+ * --- アンバー監修：新評価システムロジック ---
  */
 
-// ① 基本スコア算出
-function getBaseScore() {
-    const r = Math.random();
-    if (r < 0.30) return 89;
-    if (r < 0.55) return 88 + Math.floor(Math.random() * 3); // 88〜90
-    if (r < 0.75) return 87 + Math.floor(Math.random() * 5); // 87〜91
-    if (r < 0.90) return 90 + Math.floor(Math.random() * 3); // 90〜92
-    return 92 + Math.floor(Math.random() * 3); // 92〜94 (レア)
+// プレイ成立チェック (指示 ①)
+function isValidPlay() {
+    if (state.playTime < 5) return false;    // 5秒未満
+    if (state.scoreRaw < 1000) return false; // スコア1000未満
+    if (state.stompCount === 0) return false; // 踏みなし
+    return true;
 }
 
-// ② 実力補正
-function getSkillBonus() {
-    let bonus = 0;
-    if (state.scoreRaw > 30000) bonus += 2;
-    if (state.scoreRaw > 40000) bonus += 3;
-    if (state.playTime > 40) bonus += 2;
-    if (state.stompCount > 15) bonus += 1;
-    return bonus;
+// 技術点個別算出 (指示 ①)
+function calculateSkillScores() {
+    const technique = Math.min(100, 60 + state.stompCount * 2);
+    const attack = Math.min(100, 50 + state.stompCount * 3);
+    const jump = Math.min(100, 60 + (state.playTime * 1.2));
+    const ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
+    return { technique, attack, jump, ruby };
 }
 
-// ③ 最終スコア算出
+// 総合点（実力値） (指示 ②)
+function calculateRawTotal(skill) {
+    return Math.round(
+        skill.technique * 0.25 +
+        skill.attack * 0.25 +
+        skill.jump * 0.25 + 
+        skill.ruby * 0.25
+    );
+}
+
+// 最終スコア調整（中毒性バイアス） (指示 ③)
+function adjustScore(raw) {
+    // 89ゾーン（広い）
+    if (raw >= 80 && raw <= 95) {
+        const bias = Math.random();
+        if (bias < 0.5) return 89;
+        if (bias < 0.7) return 88;
+        if (bias < 0.9) return 90;
+        return raw;
+    }
+    // 上級者
+    if (raw > 95) {
+        if (state.playTime > 50) return 100;
+        return 95 + Math.floor(Math.random() * 3);
+    }
+    // 初心者（足切りは突破している状態）
+    if (raw < 80) {
+        return Math.max(40, raw + Math.random() * 5);
+    }
+    return raw;
+}
+
+// 評価計算メイン (指示 ②)
 function calculateResult() {
-    let total = getBaseScore();
-    total += getSkillBonus();
-    // 100点条件 (特別)
-    if (state.playTime > 60) total = 100;
-    if (total > 100) total = 100;
-    if (total < 40) total = 40;
-    return total;
+    // プレイ不成立時 (指示 ②)
+    if (!isValidPlay()) {
+        return {
+            total: 45 + Math.floor(Math.random() * 5), // 45〜50
+            skill: { technique: 40, attack: 40, jump: 40, ruby: 40 }
+        };
+    }
+
+    const skill = calculateSkillScores();
+    const raw = calculateRawTotal(skill);
+    const total = adjustScore(raw);
+    return { total, skill };
 }
 
-function generateDetailScores(total) {
-    const offset = () => (Math.random() * 6 - 3);
-    return {
-        tech: total + offset(),
-        attack: total + offset(),
-        jump: total + offset(),
-        ruby: total + offset()
-    };
-}
-
+/**
+ * 結果表示処理
+ */
 function showResult() {
-    const total = calculateResult();
-    const detail = generateDetailScores(total);
+    const resultData = calculateResult();
+    const total = resultData.total;
+    const skill = resultData.skill;
     const resTotalEl = document.getElementById('res-total');
 
     el.startBtn.style.display = 'none'; el.titleImg.style.display = 'none';
     el.overlay.style.display = 'flex'; el.resultDiv.style.display = 'block';
 
-    document.getElementById('res-tech').textContent = "テクニック：" + Math.round(detail.tech) + "点";
-    document.getElementById('res-attack').textContent = "アタック：" + Math.round(detail.attack) + "点";
-    document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(detail.jump) + "点";
-    document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(detail.ruby) + "点";
+    document.getElementById('res-tech').textContent = "テクニック：" + Math.round(skill.technique) + "点";
+    document.getElementById('res-attack').textContent = "アタック：" + Math.round(skill.attack) + "点";
+    document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(skill.jump) + "点";
+    document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(skill.ruby) + "点";
     
-    // 表示の演出
     resTotalEl.textContent = "TOTAL：" + total + "点";
-    resTotalEl.style.color = "#ffeb3b"; // デフォルト色リセット
+    resTotalEl.style.color = "#ffeb3b"; 
 
+    // 高得点演出
     if (total >= 95) {
         resTotalEl.textContent += " ★EXCELLENT★";
     }
     if (total === 100) {
         resTotalEl.textContent = "TOTAL：100点 ★PERFECT★";
-        resTotalEl.style.color = "#ffd700"; // 金色
+        resTotalEl.style.color = "#ffd700"; 
     }
 }
 
@@ -347,13 +374,12 @@ function startGame() {
     if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId); if (missTimeoutId) clearTimeout(missTimeoutId);
     feverTimeoutId = spinTimeoutId = missTimeoutId = null;
     
-    // 評価計測の初期化
     state = { 
         running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, 
         playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), 
         itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
         isAboveHole: false, firstHoleSpawned: false,
-        playTime: 0, stompCount: 0 // リセット
+        playTime: 0, stompCount: 0 
     };
 
     el.player.classList.remove('player-spin-anim'); currentPlayerImageKey = null; currentImgTag = 'main';
@@ -400,10 +426,7 @@ function gameLoop(timestamp) {
 
 function update(dt, ds, timestamp) {
     if (state.isMissed) { state.velocityY += config.gravity * ds; state.playerY -= state.velocityY * ds; return; }
-    
-    // 生存時間の計測 (秒換算)
     state.playTime += dt / 1000;
-
     if (!state.isFever) state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
     const currentTotalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
     state.velocityY += config.gravity * ds; state.playerY -= state.velocityY * ds;
@@ -481,7 +504,7 @@ function updateEntities(ds, speed, timestamp) {
                     const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
                     if (isFalling && playerBottom < enemyTopLimit + 20) {
                         playStompSe(); createStompEffect(eRect.left + eRect.width/2, eRect.top);
-                        state.stompCount++; // 踏みつけカウント加算
+                        state.stompCount++; 
                         ent.remove(); state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
                         if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
                     } else if (!state.isFever) { triggerMiss(); return; }

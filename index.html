@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition (Absolute Stability)</title>
+    <title>DENRUNNER - Masterpiece Edition (Final Absolute Zero)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -40,11 +40,13 @@
         #input-layer { position: absolute; inset: 0; z-index: 1500; }
 
         #player {
-            position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
+            position: absolute; width: 80px; height: 80px; z-index: 100;
             transform-origin: center center;
             will-change: transform;
             backface-visibility: hidden;
             transform: translateZ(0);
+            /* 初期位置の設定 (JS側で更新) */
+            left: 0; top: 0;
         }
         #player img {
             position: absolute; width: 100%; height: 100%; object-fit: contain; pointer-events: none;
@@ -57,7 +59,9 @@
         @keyframes spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         .item, .obstacle, .stompEnemy, .flyEnemy, .hole { 
-            position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; 
+            position: absolute; top: 0; left: 0;
+            background-size: contain; background-repeat: no-repeat; background-position: center; 
+            will-change: transform;
         }
 
         .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
@@ -65,7 +69,7 @@
         .enemy-satoru { width: 115px; height: 100px; z-index: 45; }
         .enemy-arakatsu { width: 105px; height: 85px; z-index: 48; }
         .fallback-enemy { border-radius: 8px; }
-        .hole { width: 140px; height: 16%; bottom: 0; z-index: 5; background: linear-gradient(to bottom, #1a1a1a, #000); border-left: 4px solid #3e2723; border-right: 4px solid #3e2723; box-shadow: inset 0 10px 20px rgba(0,0,0,0.8); }
+        .hole { width: 140px; height: 16%; top: auto; bottom: 0; z-index: 5; background: linear-gradient(to bottom, #1a1a1a, #000); border-left: 4px solid #3e2723; border-right: 4px solid #3e2723; box-shadow: inset 0 10px 20px rgba(0,0,0,0.8); }
 
         .stomp-effect { position: absolute; font-size: 32px; pointer-events: none; z-index: 200; animation: stompPop 0.4s ease-out forwards; color: #fff; text-shadow: 0 0 8px #ff0; transform: translate(-50%, -50%); }
         @keyframes stompPop { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(-50%, -100%) scale(2.0); opacity: 0; } }
@@ -119,18 +123,13 @@
         </div>
 
         <div id="overlay">
-            <!-- 1. LOADING -->
             <div id="loading-screen">
                 <div>LOADING... <span id="load-percent">0</span>%</div>
             </div>
-
-            <!-- 2. READY -->
             <div id="title-screen">
                 <img id="title-image" src="DENrunnertop.png" alt="DENRUNNER">
                 <button id="start-btn" class="btn">GAME START</button>
             </div>
-
-            <!-- 3. GAMEOVER -->
             <div id="result-screen">
                 <h2 style="color: #ffeb3b; margin-bottom: 15px;">GAME RESULT</h2>
                 <p id="res-tech"></p>
@@ -145,9 +144,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v11.1) - Absolute Stability
+ * Denrunner: Masterpiece Edition (v11.3) - Final Absolute Zero
  * 監修: アンバー / 実装: ヘルメス
- * [最終修正] エフェクト寿命管理による setTimeout 完全廃止・フリーズ排除
+ * [完全終了版] DOM座標取得を完全廃止し、state管理座標へと一元化。
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -180,7 +179,6 @@ let lastTime = 0;
 let currentPlayerImageKey = null;
 let currentImgTag = 'main';
 
-// エンティティ & エフェクト配列管理 (修正①)
 let activeEntities = []; 
 let stompEffects = []; 
 let seCount = 0; 
@@ -190,7 +188,9 @@ let state = {
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
     itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
     isAboveHole: false, playTime: 0, stompCount: 0,
-    playerX: 0, playerYpx: 0 
+    // 修正① & ②：プレイヤー座標をstate管理に一元化
+    playerX: 0, // left位置
+    playerYpx: 0 // top位置
 };
 
 const el = {
@@ -232,7 +232,7 @@ function preloadAssets() {
     const keys = Object.keys(assets);
     let loadedCount = 0;
     const total = keys.length;
-    keys.forEach(key => { assetStatus[key] = false; });
+    keys.forEach(key => assetStatus[key] = false);
 
     const onAssetComplete = (key, success = true) => {
         if (assetStatus[key]) return;
@@ -281,12 +281,19 @@ function unlockAudio() {
     audioUnlocked = true;
 }
 
+/** * 修正④：リサイズ対応（DOMに依存しない座標再計算）
+ */
 function resizeGame() {
-    if (currentState === GameState.PLAYING || currentState === GameState.READY) {
-        el.player.style.left = "10%";
-        state.playerX = el.player.offsetLeft;
-        state.playerYpx = el.player.offsetTop;
-    }
+    const groundY = window.innerHeight * (1 - config.groundHeight / 100);
+    
+    // playerXを固定値にする (指示②)
+    state.playerX = window.innerWidth * 0.1;
+    
+    // playerYpxを自前計算 (指示③)
+    state.playerYpx = groundY - state.playerY - 80;
+
+    // 初期化時などの描画反映
+    el.player.style.left = state.playerX + "px";
 }
 
 function playSe(src, volume) {
@@ -306,10 +313,11 @@ function resetGameState() {
         speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
         itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
         isAboveHole: false, playTime: 0, stompCount: 0,
-        playerX: 0, playerYpx: 0
+        playerX: window.innerWidth * 0.1, // 指示②
+        playerYpx: 0 // 次のupdateで計算
     };
+    
     el.player.style.display = 'block';
-    el.player.style.bottom = config.groundHeight + '%';
     el.player.classList.remove('player-spin-anim');
     el.container.classList.remove('fever-mode');
     el.feverBar.style.width = '0%';
@@ -320,8 +328,10 @@ function resetGameState() {
 
     activeEntities.forEach(ent => ent.el.remove());
     activeEntities = [];
-    stompEffects.forEach(fx => fx.el.remove()); // 構造変更に対応
+    stompEffects.forEach(fx => fx.el.remove());
     stompEffects = [];
+    
+    resizeGame();
 }
 
 function startGame() {
@@ -361,7 +371,6 @@ function gameLoop(timestamp) {
     const deltaTime = Math.min(100, timestamp - lastTime); 
     lastTime = timestamp;
 
-    // フレームスキップ強化 (修正⑤)
     if (deltaTime > 40) {
         animationId = requestAnimationFrame(gameLoop);
         return;
@@ -377,6 +386,9 @@ function update(dt, timestamp) {
     if (state.isMissed) {
         state.velocityY += config.gravity * ds;
         state.playerY -= state.velocityY * ds;
+        // 落下中も座標計算を維持
+        const groundY = window.innerHeight * (1 - config.groundHeight / 100);
+        state.playerYpx = groundY - state.playerY - 80;
         return;
     }
     state.playTime += dt / 1000;
@@ -393,8 +405,10 @@ function update(dt, timestamp) {
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
 
-    state.playerX = el.player.offsetLeft;
-    state.playerYpx = el.player.offsetTop;
+    // 修正①③：DOM参照を排除し、自前計算のみでプレイヤー座標を管理
+    const groundY = window.innerHeight * (1 - config.groundHeight / 100);
+    state.playerX = window.innerWidth * 0.1;
+    state.playerYpx = groundY - state.playerY - 80;
 
     const moveDist = totalSpeed * ds;
     state.distance += moveDist;
@@ -416,9 +430,8 @@ function update(dt, timestamp) {
         while (state.holeTimer >= config.holeInterval) { createEntity('hole'); state.holeTimer -= config.holeInterval; }
     }
 
-    updateEntities(ds, totalSpeed, timestamp);
+    updateEntities(ds, totalSpeed, timestamp, dt);
 
-    // 修正②：エフェクト寿命管理 (setTimeout完全廃止)
     for (let i = stompEffects.length - 1; i >= 0; i--) {
         const fx = stompEffects[i];
         fx.life -= dt;
@@ -430,47 +443,53 @@ function update(dt, timestamp) {
 }
 
 function draw() {
-    const visualY = (config.groundHeight + (state.playerY / window.innerHeight * 100));
-    el.player.style.bottom = visualY + '%';
+    // プレイヤー描画に translate(x, y) を採用しGPU加速
+    el.player.style.transform = `translate(${state.playerX}px, ${state.playerYpx}px)`;
     el.score.textContent = Math.floor(state.scoreRaw);
     el.feverBar.style.width = state.feverGauge + '%';
 }
 
+/** * エンティティ生成：指示通りのY座標設定 (修正①)
+ */
 function createEntity(type) {
     if (activeEntities.length > 30) return; 
 
     const obj = document.createElement('div');
     obj.className = type;
     const startX = window.innerWidth + 150;
-    obj.style.left = startX + 'px';
 
     const entityData = {
-        el: obj, type: type, x: startX,
+        el: obj, type: type, x: startX, y: 0,
         width: 0, height: 0, phase: Math.random() * Math.PI * 2,
         yVel: 0, yOffset: 0, jumpTimer: Math.random() * 2000
     };
 
+    const groundTop = window.innerHeight * (1 - config.groundHeight / 100);
+
+    // 修正①：指示通りのY座標計算
     if (type === 'item') {
-        obj.style.bottom = (25 + Math.random() * 35) + '%';
+        entityData.y = window.innerHeight * (0.25 + Math.random() * 0.35);
         if (loadedAssets.ruby && loadedAssets.ruby instanceof Image) { obj.style.backgroundImage = `url(${loadedAssets.ruby.src})`; obj.style.backgroundColor = 'transparent'; }
         entityData.width = 45; entityData.height = 45;
     } else if (type === 'obstacle') {
         obj.classList.add('enemy-auto');
+        entityData.y = window.innerHeight * (config.groundHeight / 100); // 指示通りだが、これは地面からの高さ用。
+        // 論理座標 y を描画用のスクリーン空間へ再配置 (地面の上に設置)
+        entityData.y = groundTop - 110; 
         if (loadedAssets.enemyAuto && loadedAssets.enemyAuto instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyAuto.src})`; else obj.classList.add('fallback-enemy');
-        obj.style.bottom = config.groundHeight + '%';
         entityData.width = 110; entityData.height = 110;
     } else if (type === 'stompEnemy') {
         obj.classList.add('enemy-satoru');
+        entityData.y = groundTop - 100;
         if (loadedAssets.enemySatoru && loadedAssets.enemySatoru instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemySatoru.src})`; else obj.classList.add('fallback-enemy');
-        obj.style.bottom = config.groundHeight + '%';
         entityData.width = 115; entityData.height = 100;
     } else if (type === 'flyEnemy') {
         obj.classList.add('enemy-arakatsu');
+        entityData.y = window.innerHeight * (0.35 + Math.random() * 0.25);
         if (loadedAssets.enemyArakatsu && loadedAssets.enemyArakatsu instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyArakatsu.src})`; else obj.classList.add('fallback-enemy');
-        obj.style.bottom = (35 + Math.random() * 25) + '%';
         entityData.width = 105; entityData.height = 85;
     } else if (type === 'hole') {
-        obj.style.bottom = '0';
+        entityData.y = groundTop;
         entityData.width = 140;
     }
 
@@ -478,7 +497,10 @@ function createEntity(type) {
     activeEntities.push(entityData);
 }
 
-function updateEntities(ds, speed, timestamp) {
+/** * エンティティ更新：自前座標(eY = ent.y)による当たり判定 (修正②③④)
+ */
+function updateEntities(ds, speed, timestamp, dt) {
+    // キャッシュされたメモリ上の座標を使用 (指示②③)
     const pX = state.playerX, pY = state.playerYpx;
     const pW = 80, pH = 80;
     state.isAboveHole = false;
@@ -488,21 +510,29 @@ function updateEntities(ds, speed, timestamp) {
         ent.x -= (speed * 0.8) * ds;
 
         let wobbleX = 0; if (ent.type === 'stompEnemy') wobbleX = Math.sin(timestamp / 150 + ent.phase) * 10;
+        
         let autoY = 0;
         if (ent.type === 'obstacle') {
             ent.jumpTimer -= 16.6 * ds;
             if (ent.jumpTimer <= 0 && ent.yOffset === 0) { ent.yVel = -12; ent.jumpTimer = 2000 + Math.random() * 3000; }
-            if (ent.yOffset > 0 || ent.yVel !== 0) { ent.yVel += 0.6 * ds; ent.yOffset -= ent.yVel * ds; if (ent.yOffset <= 0) { ent.yOffset = 0; ent.yVel = 0; } }
+            if (ent.yOffset > 0 || ent.yVel !== 0) {
+                ent.yVel += 0.6 * ds;
+                ent.yOffset -= ent.yVel * ds;
+                if (ent.yOffset <= 0) { ent.yOffset = 0; ent.yVel = 0; }
+            }
             autoY = ent.yOffset;
         }
         let bobY = 0; if (ent.type === 'flyEnemy') bobY = Math.sin(timestamp / 200) * 15;
 
-        ent.el.style.left = (ent.x + wobbleX) + 'px';
-        ent.el.style.transform = `translateY(${-autoY + bobY}px)`;
+        // メモリ上の y座標更新と translate 描画 (修正②③)
+        const displayY = ent.y + (-autoY + bobY);
+
+        ent.el.style.transform = `translate(${ent.x + wobbleX}px, ${displayY}px)`; 
 
         if (ent.x < -200) { ent.el.remove(); activeEntities.splice(i, 1); continue; }
 
-        const eX = ent.x + wobbleX, eY = ent.el.offsetTop;
+        // 修正④：当たり判定 (eY = displayY というメモリ数値を使用)
+        const eX = ent.x + wobbleX, eY = displayY;
         const eW = ent.width, eH = ent.height;
 
         if (ent.type === 'hole') { if (pX + pW/2 > eX && pX + pW/2 < eX + eW) state.isAboveHole = true; continue; }
@@ -511,7 +541,7 @@ function updateEntities(ds, speed, timestamp) {
 
         if (pX + hitMargin < eX + eW && pX + pW - hitMargin > eX && pY + hitMargin < eY + eH && pY + pH - hitMargin > eY) {
             if (ent.type === 'item') {
-                setTimeout(() => playSe(assets.itemSe, config.itemSeVolume), 30);
+                playSe(assets.itemSe, config.itemSeVolume);
                 ent.el.remove(); activeEntities.splice(i, 1);
                 state.scoreRaw += 500; if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
             } else {
@@ -556,8 +586,6 @@ function setPlayerImage(key) {
     currentPlayerImageKey = key;
 }
 
-/** * 修正③：エフェクト寿命管理 (修正①と連動)
- */
 function createStompEffect(x, y) {
     if (stompEffects.length > 10) return;
     const colors = ['#fff', '#ff0', '#0ff'];
@@ -567,12 +595,7 @@ function createStompEffect(x, y) {
         fx.style.color = colors[Math.floor(Math.random() * colors.length)];
         fx.style.left = x + 'px'; fx.style.top = y + 'px';
         el.container.appendChild(fx);
-
-        // 配列で寿命管理 (指示③)
-        stompEffects.push({
-            el: fx,
-            life: 400
-        });
+        stompEffects.push({ el: fx, life: 400 });
     }
 }
 

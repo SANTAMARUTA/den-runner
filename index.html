@@ -140,8 +140,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v8.2) - Stable+
+ * Denrunner: Masterpiece Edition (v8.3) - Stable+
  * 監修: アンバー / 実装: ヘルメス
+ * [重要] ローディングフリーズ対策パッチ適用済み
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -164,7 +165,7 @@ let currentState = GameState.LOADING;
 const loadedAssets = {}; 
 let audioUnlocked = false;
 let animationId = null; 
-let bgmFadeInterval = null; // 修正②: BGMフェード管理
+let bgmFadeInterval = null;
 let lastTime = 0;
 let currentPlayerImageKey = null;
 let currentImgTag = 'main';
@@ -209,29 +210,77 @@ function initGame() {
     resizeGame();
 }
 
+/** * プリロード管理：フリーズ対策強化版 (修正①②③④)
+ */
 function preloadAssets() {
     const keys = Object.keys(assets);
     let loadedCount = 0;
+    const total = keys.length;
+
+    const onAssetComplete = (key, success = true) => {
+        if (loadedAssets[key] && success) return; // 既に処理済みなら無視
+        if (success) {
+            console.log("[Loaded]", key);
+        } else {
+            console.log("[Failed]", key);
+        }
+        
+        // 成功/失敗に関わらずカウントを進めてフリーズを防ぐ
+        if (!loadedAssets[key]) {
+            loadedCount++;
+            loadedAssets[key] = success; // フラグまたは実体を記録
+            updateProgress(loadedCount, total);
+        }
+    };
+
     keys.forEach(key => {
         const path = assets[key];
         const isAudio = path.endsWith('.mp3') || path.endsWith('.wav');
+
+        // 強制タイムアウト (修正②)
+        setTimeout(() => {
+            if (!loadedAssets[key]) {
+                console.warn("[Load Timeout]", key);
+                onAssetComplete(key, false);
+            }
+        }, 3000);
+
         if (isAudio) {
-            const audio = new Audio(); audio.src = path;
-            audio.oncanplaythrough = () => { if (loadedAssets[key]) return; loadedAssets[key] = audio; loadedCount++; updateProgress(loadedCount, keys.length); };
-            audio.onerror = () => { loadedCount++; updateProgress(loadedCount, keys.length); };
+            const audio = new Audio();
+            audio.src = path;
+            
+            // 修正①: oncanplaythrough から onloadeddata へ変更
+            audio.onloadeddata = () => {
+                loadedAssets[key] = audio;
+                onAssetComplete(key, true);
+            };
+            audio.onerror = () => onAssetComplete(key, false);
+
+            // 修正④: BGMの能動的ロード
+            if (key === "bgm") {
+                audio.preload = "auto";
+                audio.load();
+            }
         } else {
-            const img = new Image(); img.src = path;
-            img.onload = () => { loadedAssets[key] = img; loadedCount++; updateProgress(loadedCount, keys.length); };
-            img.onerror = () => { loadedCount++; updateProgress(loadedCount, keys.length); };
+            const img = new Image();
+            img.src = path;
+            img.onload = () => {
+                loadedAssets[key] = img;
+                onAssetComplete(key, true);
+            };
+            img.onerror = () => onAssetComplete(key, false);
         }
     });
 }
 
 function updateProgress(count, total) {
+    // 修正⑤: 1個欠けても進行を許容する（loadedAssets内にフラグがあればOK）
     const percent = Math.floor((count / total) * 100);
     el.loadPercent.textContent = percent;
+    
     if (count >= total) {
         setTimeout(() => {
+            if (currentState !== GameState.LOADING) return;
             currentState = GameState.READY;
             el.loadingScreen.style.display = 'none';
             el.titleScreen.style.display = 'flex';
@@ -250,7 +299,6 @@ function unlockAudio() {
     audioUnlocked = true;
 }
 
-// 修正③: リサイズ対応（ズレ防止）
 function resizeGame() {
     if (currentState === GameState.PLAYING || currentState === GameState.READY) {
         el.player.style.left = "10%";
@@ -258,7 +306,7 @@ function resizeGame() {
 }
 
 function playSe(key, volume) {
-    if (!audioUnlocked || !loadedAssets[key]) return;
+    if (!audioUnlocked || !loadedAssets[key] || !(loadedAssets[key] instanceof Audio)) return;
     try {
         const base = loadedAssets[key];
         const clone = base.cloneNode();
@@ -289,7 +337,7 @@ function resetGameState() {
 function startGame() {
     if (currentState === GameState.PLAYING) return;
     if (animationId) cancelAnimationFrame(animationId);
-    if (bgmFadeInterval) clearInterval(bgmFadeInterval); // 修正②
+    if (bgmFadeInterval) clearInterval(bgmFadeInterval);
 
     resetGameState();
     currentState = GameState.PLAYING;
@@ -297,11 +345,11 @@ function startGame() {
     
     playSe('startSe', config.startSeVolume);
     const bgm = loadedAssets['bgm'];
-    if (bgm) {
+    if (bgm && bgm instanceof Audio) {
         bgm.currentTime = 0; bgm.volume = 0;
         bgm.play().catch(() => {});
         let v = 0;
-        bgmFadeInterval = setInterval(() => { // 修正②
+        bgmFadeInterval = setInterval(() => {
             v += 0.02;
             bgm.volume = Math.min(v, config.bgmVolume);
             if (v >= config.bgmVolume) clearInterval(bgmFadeInterval);
@@ -311,7 +359,6 @@ function startGame() {
     animationId = requestAnimationFrame(gameLoop);
 }
 
-// 修正①: gameLoopの完全停止
 function gameLoop(timestamp) {
     if (currentState !== GameState.PLAYING) {
         animationId = null;
@@ -373,19 +420,19 @@ function createEntity(type) {
     obj.dataset.x = window.innerWidth + 150; 
     if (type === 'item') {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
-        if (loadedAssets.ruby) { obj.style.backgroundImage = `url(${loadedAssets.ruby.src})`; obj.style.backgroundColor = 'transparent'; }
+        if (loadedAssets.ruby && loadedAssets.ruby instanceof Image) { obj.style.backgroundImage = `url(${loadedAssets.ruby.src})`; obj.style.backgroundColor = 'transparent'; }
     } else if (type === 'obstacle') {
         obj.classList.add('enemy-auto');
-        if (loadedAssets.enemyAuto) obj.style.backgroundImage = `url(${loadedAssets.enemyAuto.src})`; else obj.classList.add('fallback-enemy');
+        if (loadedAssets.enemyAuto && loadedAssets.enemyAuto instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyAuto.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = config.groundHeight + '%';
         obj.dataset.yVel = 0; obj.dataset.yOffset = 0; obj.dataset.jumpTimer = Math.random() * 2000;
     } else if (type === 'stompEnemy') {
         obj.classList.add('enemy-satoru'); obj.dataset.phase = Math.random() * Math.PI * 2;
-        if (loadedAssets.enemySatoru) obj.style.backgroundImage = `url(${loadedAssets.enemySatoru.src})`; else obj.classList.add('fallback-enemy');
+        if (loadedAssets.enemySatoru && loadedAssets.enemySatoru instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemySatoru.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = config.groundHeight + '%';
     } else if (type === 'flyEnemy') {
         obj.classList.add('enemy-arakatsu');
-        if (loadedAssets.enemyArakatsu) obj.style.backgroundImage = `url(${loadedAssets.enemyArakatsu.src})`; else obj.classList.add('fallback-enemy');
+        if (loadedAssets.enemyArakatsu && loadedAssets.enemyArakatsu instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyArakatsu.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = (35 + Math.random() * 25) + '%';
     } else if (type === 'hole') { obj.style.bottom = '0'; }
     el.container.appendChild(obj);
@@ -458,7 +505,7 @@ function handleInput() {
 
 function setPlayerImage(key) {
     if (currentPlayerImageKey === key) return;
-    let nextAsset = loadedAssets[key] || loadedAssets['player'];
+    let nextAsset = (loadedAssets[key] && loadedAssets[key] instanceof Image) ? loadedAssets[key] : (loadedAssets['player'] instanceof Image ? loadedAssets['player'] : null);
     if (!nextAsset) return;
     const target = (currentImgTag === 'main') ? el.playerImgSub : el.playerImgMain;
     const old = (currentImgTag === 'main') ? el.playerImgMain : el.playerImgSub;
@@ -484,11 +531,11 @@ function triggerMiss() {
     setPlayerImage('playerMiss');
     playSe('missSe', config.missSeVolume);
     const bgm = loadedAssets['bgm'];
-    if (bgm) bgm.volume = config.bgmVolume * 0.2;
+    if (bgm && bgm instanceof Audio) bgm.volume = config.bgmVolume * 0.2;
     el.player.classList.remove('player-spin-anim');
     state.velocityY = -12;
     setTimeout(() => {
-        if (bgmFadeInterval) clearInterval(bgmFadeInterval); // フェード中断
+        if (bgmFadeInterval) clearInterval(bgmFadeInterval);
         currentState = GameState.GAMEOVER;
         showResult();
     }, 800);
@@ -505,7 +552,7 @@ function startFever() {
 
 function showResult() {
     const bgm = loadedAssets['bgm'];
-    if (bgm) { bgm.pause(); bgm.currentTime = 0; }
+    if (bgm && bgm instanceof Audio) { bgm.pause(); bgm.currentTime = 0; }
     if (animationId) cancelAnimationFrame(animationId);
     const isVal = state.playTime >= 5 && state.scoreRaw >= 1000 && state.stompCount > 0;
     let total = 45 + Math.floor(Math.random()*5);

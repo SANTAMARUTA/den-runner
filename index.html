@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition (Final)</title>
+    <title>DENRUNNER - Final Masterpiece (Absolute Fix)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -140,8 +140,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v9.0) - Absolute Completion
+ * Denrunner: Masterpiece Edition (v9.3) - Absolute Completion
  * 監修: アンバー / 実装: ヘルメス
+ * [最終仕上げ] タイムアウトID管理による二重カウントの物理的根絶
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -153,7 +154,6 @@ const config = {
     groundHeight: 15, scoreRate: 0.1, bgmVolume: 0.5, stompSeVolume: 0.7, itemSeVolume: 0.7, missSeVolume: 0.8, startSeVolume: 0.7
 };
 
-// 修正②: BGMをmp3に変更 & 修正③: preloadから除外
 const assets = {
     player: 'DENさん走行時.gif', playerJump: 'DENさんジャンプ.png', playerMiss: 'DENさんクラッシュ.png',
     ruby: 'イザックるびぃ.png', enemyAuto: 'オート.png', enemySatoru: 'サトルさん.png', enemyArakatsu: 'アラカツさん.png',
@@ -164,10 +164,11 @@ const assets = {
 let currentState = GameState.LOADING;
 const loadedAssets = {}; 
 const assetStatus = {}; 
+const timeoutMap = {}; // 修正①：タイムアウトID管理用マップ
 let audioUnlocked = false;
 let animationId = null; 
 let bgmFadeInterval = null;
-let gameBgm = null; // 修正④用
+let gameBgm = null;
 let lastTime = 0;
 let currentPlayerImageKey = null;
 let currentImgTag = 'main';
@@ -212,7 +213,7 @@ function initGame() {
     resizeGame();
 }
 
-/** * プリロード管理：二重カウントバグ修正 & タイムアウト最適化版
+/** * プリロード管理：競合完全排除パッチ (修正①②③)
  */
 function preloadAssets() {
     const keys = Object.keys(assets);
@@ -222,22 +223,29 @@ function preloadAssets() {
     keys.forEach(key => { assetStatus[key] = false; });
 
     const onAssetComplete = (key, success = true) => {
+        // 既に処理済みなら何もしない
         if (assetStatus[key]) return;
         assetStatus[key] = true;
-        // 修正⑦: 冗長なログを削除
-        if (!loadedAssets[key]) {
-            loadedCount++;
-            loadedAssets[key] = success ? (loadedAssets[key] || true) : false;
-            updateProgress(loadedCount, total);
+
+        if (!success) {
+            console.warn("[Failed/Timeout]", key);
         }
+
+        // アセット実体格納
+        if (!loadedAssets[key]) {
+            loadedAssets[key] = success ? true : false;
+        }
+
+        loadedCount++;
+        updateProgress(loadedCount, total);
     };
 
     keys.forEach(key => {
         const path = assets[key];
         const isAudio = path.endsWith('.mp3') || path.endsWith('.wav');
 
-        // 修正⑥: タイムアウトを 2000ms に調整
-        setTimeout(() => {
+        // 修正②：タイムアウトを保存
+        timeoutMap[key] = setTimeout(() => {
             onAssetComplete(key, false);
         }, 2000);
 
@@ -245,18 +253,28 @@ function preloadAssets() {
             const audio = new Audio();
             audio.src = path;
             audio.onloadeddata = () => {
+                // 修正③：成功時にキャンセル
+                clearTimeout(timeoutMap[key]);
                 loadedAssets[key] = audio;
                 onAssetComplete(key, true);
             };
-            audio.onerror = () => onAssetComplete(key, false);
+            audio.onerror = () => {
+                clearTimeout(timeoutMap[key]);
+                onAssetComplete(key, false);
+            };
         } else {
             const img = new Image();
             img.src = path;
             img.onload = () => {
+                // 修正③：成功時にキャンセル
+                clearTimeout(timeoutMap[key]);
                 loadedAssets[key] = img;
                 onAssetComplete(key, true);
             };
-            img.onerror = () => onAssetComplete(key, false);
+            img.onerror = () => {
+                clearTimeout(timeoutMap[key]);
+                onAssetComplete(key, false);
+            };
         }
     });
 }
@@ -292,7 +310,6 @@ function resizeGame() {
     }
 }
 
-// 修正⑤: playSeの軽量化
 function playSe(src, volume) {
     if (!audioUnlocked) return;
     try { 
@@ -332,7 +349,6 @@ function startGame() {
     
     playSe(assets.startSe, config.startSeVolume);
 
-    // 修正④: BGMはstartGameでmp3を直接読み込む
     if (gameBgm) { gameBgm.pause(); gameBgm = null; }
     gameBgm = new Audio('DEN RUNNER Main Loop.mp3');
     gameBgm.loop = true;
@@ -463,7 +479,6 @@ function updateEntities(ds, speed, timestamp) {
                 ent.remove(); state.scoreRaw += 500;
                 if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
             } else {
-                // 修正①: バグ修正 (stompable定義)
                 const stompable = ent.classList.contains('stompEnemy') || ent.classList.contains('flyEnemy') || ent.classList.contains('obstacle');
                 if (stompable) {
                     const isFalling = state.velocityY > 0;

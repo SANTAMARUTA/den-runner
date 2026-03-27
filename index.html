@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Final Masterpiece (Absolute Fix)</title>
+    <title>DENRUNNER - Masterpiece Edition (Experience Perfect)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -140,9 +140,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v9.3) - Absolute Completion
+ * Denrunner: Masterpiece Edition (v9.4) - Absolute Completion
  * 監修: アンバー / 実装: ヘルメス
- * [最終仕上げ] タイムアウトID管理による二重カウントの物理的根絶
+ * [重要] スピン演出復活 & リトライUX改善パッチ適用済み
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -164,10 +164,11 @@ const assets = {
 let currentState = GameState.LOADING;
 const loadedAssets = {}; 
 const assetStatus = {}; 
-const timeoutMap = {}; // 修正①：タイムアウトID管理用マップ
+const timeoutMap = {}; 
 let audioUnlocked = false;
 let animationId = null; 
 let bgmFadeInterval = null;
+let spinTimeoutId = null; // スピン演出用
 let gameBgm = null;
 let lastTime = 0;
 let currentPlayerImageKey = null;
@@ -208,73 +209,42 @@ function initGame() {
         unlockAudio();
         startGame();
     });
-    document.getElementById('retry-btn').addEventListener('click', () => { location.reload(); });
+    // 修正：リロードせずに即再開 (Amber指示)
+    document.getElementById('retry-btn').addEventListener('click', () => { 
+        startGame(); 
+    });
     document.getElementById('input-layer').addEventListener('pointerdown', handleInput);
     resizeGame();
 }
 
-/** * プリロード管理：競合完全排除パッチ (修正①②③)
- */
 function preloadAssets() {
     const keys = Object.keys(assets);
     let loadedCount = 0;
     const total = keys.length;
-
     keys.forEach(key => { assetStatus[key] = false; });
 
     const onAssetComplete = (key, success = true) => {
-        // 既に処理済みなら何もしない
         if (assetStatus[key]) return;
         assetStatus[key] = true;
-
-        if (!success) {
-            console.warn("[Failed/Timeout]", key);
-        }
-
-        // アセット実体格納
         if (!loadedAssets[key]) {
             loadedAssets[key] = success ? true : false;
         }
-
         loadedCount++;
         updateProgress(loadedCount, total);
     };
 
     keys.forEach(key => {
         const path = assets[key];
-        const isAudio = path.endsWith('.mp3') || path.endsWith('.wav');
+        timeoutMap[key] = setTimeout(() => onAssetComplete(key, false), 2000);
 
-        // 修正②：タイムアウトを保存
-        timeoutMap[key] = setTimeout(() => {
-            onAssetComplete(key, false);
-        }, 2000);
-
-        if (isAudio) {
-            const audio = new Audio();
-            audio.src = path;
-            audio.onloadeddata = () => {
-                // 修正③：成功時にキャンセル
-                clearTimeout(timeoutMap[key]);
-                loadedAssets[key] = audio;
-                onAssetComplete(key, true);
-            };
-            audio.onerror = () => {
-                clearTimeout(timeoutMap[key]);
-                onAssetComplete(key, false);
-            };
+        if (path.endsWith('.mp3') || path.endsWith('.wav')) {
+            const audio = new Audio(); audio.src = path;
+            audio.onloadeddata = () => { clearTimeout(timeoutMap[key]); loadedAssets[key] = audio; onAssetComplete(key, true); };
+            audio.onerror = () => { clearTimeout(timeoutMap[key]); onAssetComplete(key, false); };
         } else {
-            const img = new Image();
-            img.src = path;
-            img.onload = () => {
-                // 修正③：成功時にキャンセル
-                clearTimeout(timeoutMap[key]);
-                loadedAssets[key] = img;
-                onAssetComplete(key, true);
-            };
-            img.onerror = () => {
-                clearTimeout(timeoutMap[key]);
-                onAssetComplete(key, false);
-            };
+            const img = new Image(); img.src = path;
+            img.onload = () => { clearTimeout(timeoutMap[key]); loadedAssets[key] = img; onAssetComplete(key, true); };
+            img.onerror = () => { clearTimeout(timeoutMap[key]); onAssetComplete(key, false); };
         }
     });
 }
@@ -282,7 +252,6 @@ function preloadAssets() {
 function updateProgress(count, total) {
     const percent = Math.floor((count / total) * 100);
     el.loadPercent.textContent = percent;
-    
     if (count >= total) {
         setTimeout(() => {
             if (currentState !== GameState.LOADING) return;
@@ -312,11 +281,7 @@ function resizeGame() {
 
 function playSe(src, volume) {
     if (!audioUnlocked) return;
-    try { 
-        const se = new Audio(src); 
-        se.volume = volume; 
-        se.play().catch(()=>{}); 
-    } catch(e) {}
+    try { const se = new Audio(src); se.volume = volume; se.play().catch(()=>{}); } catch(e) {}
 }
 
 function resetGameState() {
@@ -339,20 +304,24 @@ function resetGameState() {
 }
 
 function startGame() {
-    if (currentState === GameState.PLAYING) return;
+    // クリーンアップ (Amber指示)
     if (animationId) cancelAnimationFrame(animationId);
     if (bgmFadeInterval) clearInterval(bgmFadeInterval);
+    if (spinTimeoutId) clearTimeout(spinTimeoutId);
 
     resetGameState();
     currentState = GameState.PLAYING;
+    
+    // UIを隠す
     el.overlay.style.display = 'none';
+    el.titleScreen.style.display = 'none';
+    el.resultScreen.style.display = 'none';
     
     playSe(assets.startSe, config.startSeVolume);
 
     if (gameBgm) { gameBgm.pause(); gameBgm = null; }
     gameBgm = new Audio('DEN RUNNER Main Loop.mp3');
-    gameBgm.loop = true;
-    gameBgm.volume = 0;
+    gameBgm.loop = true; gameBgm.volume = 0;
     gameBgm.play().catch(() => {});
 
     let v = 0;
@@ -390,12 +359,15 @@ function update(dt, timestamp) {
     const totalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
     state.velocityY += config.gravity * ds;
     state.playerY -= state.velocityY * ds;
-    if (state.playerY <= 0) {
+
+    // 修正：着地判定を厳密化 (Amber指示：0.5に余裕を持たせる)
+    if (state.playerY <= 0.5) {
         if (!state.isAboveHole) {
             state.playerY = 0; state.velocityY = 0; state.jumps = 0;
             if (currentPlayerImageKey !== 'player') setPlayerImage('player');
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
+
     const moveDist = totalSpeed * ds;
     state.distance += moveDist; state.scoreRaw += moveDist * config.scoreRate;
     const bgPos = (state.distance % window.innerWidth);
@@ -450,30 +422,21 @@ function updateEntities(ds, speed, timestamp) {
     const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole');
     state.isAboveHole = false;
     for (const ent of entities) {
-        let x = parseFloat(ent.dataset.x);
-        x -= (speed * 0.8) * ds;
-        ent.dataset.x = x;
+        let x = parseFloat(ent.dataset.x); x -= (speed * 0.8) * ds; ent.dataset.x = x;
         let hitMargin = 22; if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
         let wobbleX = 0; if (ent.classList.contains('enemy-satoru')) { const phase = parseFloat(ent.dataset.phase || 0); wobbleX = Math.sin(timestamp / 150 + phase) * 10; }
         let autoY = 0;
         if (ent.classList.contains('enemy-auto')) {
             let yVel = parseFloat(ent.dataset.yVel), yOff = parseFloat(ent.dataset.yOffset), jTim = parseFloat(ent.dataset.jumpTimer);
-            jTim -= 16.6 * ds;
-            if (jTim <= 0 && yOff === 0) { yVel = -12; jTim = 2000 + Math.random() * 3000; }
+            jTim -= 16.6 * ds; if (jTim <= 0 && yOff === 0) { yVel = -12; jTim = 2000 + Math.random() * 3000; }
             if (yOff > 0 || yVel !== 0) { yVel += 0.6 * ds; yOff -= yVel * ds; if (yOff <= 0) { yOff = 0; yVel = 0; } }
             ent.dataset.yVel = yVel; ent.dataset.yOffset = yOff; ent.dataset.jumpTimer = jTim; autoY = yOff;
         }
         let bobY = 0; if (ent.classList.contains('enemy-arakatsu')) bobY = Math.sin(timestamp / 200) * 15;
-        ent.style.left = (x + wobbleX) + 'px';
-        ent.style.transform = `translateY(${-autoY + bobY}px)`;
+        ent.style.left = (x + wobbleX) + 'px'; ent.style.transform = `translateY(${-autoY + bobY}px)`;
         const eRect = ent.getBoundingClientRect();
-        if (ent.classList.contains('hole')) {
-            const pCenter = pRect.left + pRect.width / 2;
-            if (pCenter > eRect.left && pCenter < eRect.right) state.isAboveHole = true;
-        }
-        if (!ent.classList.contains('hole') && 
-            pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left &&
-            pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
+        if (ent.classList.contains('hole')) { const pCenter = pRect.left + pRect.width / 2; if (pCenter > eRect.left && pCenter < eRect.right) state.isAboveHole = true; }
+        if (!ent.classList.contains('hole') && pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left && pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
             if (ent.classList.contains('item')) {
                 setTimeout(() => playSe(assets.itemSe, config.itemSeVolume), 30);
                 ent.remove(); state.scoreRaw += 500;
@@ -485,10 +448,8 @@ function updateEntities(ds, speed, timestamp) {
                     const pBottom = pRect.bottom - hitMargin;
                     const eTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
                     if (isFalling && pBottom < eTopLimit + 20) {
-                        playSe(assets.stompSe, config.stompSeVolume);
-                        createStompEffect(eRect.left + eRect.width/2, eRect.top);
-                        state.stompCount++;
-                        ent.remove(); state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
+                        playSe(assets.stompSe, config.stompSeVolume); createStompEffect(eRect.left + eRect.width/2, eRect.top);
+                        state.stompCount++; ent.remove(); state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
                         if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
                     } else if (!state.isFever) { triggerMiss(); return; }
                 }
@@ -500,13 +461,19 @@ function updateEntities(ds, speed, timestamp) {
 
 function handleInput() {
     if (currentState !== GameState.PLAYING || state.isMissed || state.jumps >= 2) return;
-    if (state.jumps === 1) {
+
+    // 演出修正：空中での再ジャンプ時にスピンを発動 (Amber指示)
+    const isAir = state.playerY > 0;
+    if (isAir && state.jumps >= 1) {
         if (spinTimeoutId) clearTimeout(spinTimeoutId);
-        el.player.classList.remove('player-spin-anim'); void el.player.offsetWidth;
+        el.player.classList.remove('player-spin-anim');
+        void el.player.offsetWidth; // リフロー強制
         el.player.classList.add('player-spin-anim');
         spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
     }
-    state.velocityY = config.jumpPower; state.jumps++;
+
+    state.velocityY = config.jumpPower;
+    state.jumps++;
     setPlayerImage('playerJump');
 }
 
@@ -559,29 +526,40 @@ function startFever() {
 function showResult() {
     if (gameBgm) { gameBgm.pause(); gameBgm.currentTime = 0; }
     if (animationId) cancelAnimationFrame(animationId);
+
     const isVal = state.playTime >= 5 && state.scoreRaw >= 1000 && state.stompCount > 0;
     let total = 45 + Math.floor(Math.random()*5);
     let skill = { technique: 40, attack: 40, jump: 40, ruby: 40 };
+
     if (isVal) {
-        skill.technique = Math.min(100, 60 + state.stompCount * 2); skill.attack = Math.min(100, 50 + state.stompCount * 3);
-        skill.jump = Math.min(100, 60 + (state.playTime * 1.2)); skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
+        skill.technique = Math.min(100, 60 + state.stompCount * 2);
+        skill.attack = Math.min(100, 50 + state.stompCount * 3);
+        skill.jump = Math.min(100, 60 + (state.playTime * 1.2));
+        skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
         const raw = Math.round(skill.technique*0.25 + skill.attack*0.25 + skill.jump*0.25 + skill.ruby*0.25);
         total = Math.round(raw);
         if (raw >= 80 && raw <= 95) {
-            const b = Math.random(); if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90;
+            const b = Math.random();
+            if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90;
         }
         if (raw > 95) total = (state.playTime > 50) ? 100 : 95 + Math.floor(Math.random()*3);
     }
-    el.titleScreen.style.display = 'none'; el.resultScreen.style.display = 'block'; el.overlay.style.display = 'flex';
+
+    el.overlay.style.display = 'flex';
+    el.titleScreen.style.display = 'none';
+    el.resultScreen.style.display = 'block';
+
     document.getElementById('res-tech').textContent = "テクニック：" + Math.round(skill.technique) + "点";
     document.getElementById('res-attack').textContent = "アタック：" + Math.round(skill.attack) + "点";
     document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(skill.jump) + "点";
     document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(skill.ruby) + "点";
+    
     const resTotal = document.getElementById('res-total');
-    resTotal.textContent = "TOTAL：" + Math.round(total) + "点";
-    resTotal.style.color = (Math.round(total) === 100) ? "#ffd700" : "#ffeb3b";
-    if (total >= 95) resTotal.textContent += " ★EXCELLENT★";
-    if (Math.round(total) === 100) resTotal.textContent = "TOTAL：100点 ★PERFECT★";
+    const totalInt = Math.round(total);
+    resTotal.textContent = "TOTAL：" + totalInt + "点";
+    resTotal.style.color = (totalInt === 100) ? "#ffd700" : "#ffeb3b";
+    if (totalInt >= 95) resTotal.textContent += " ★EXCELLENT★";
+    if (totalInt === 100) resTotal.textContent = "TOTAL：100点 ★PERFECT★";
 }
 </script>
 </body>

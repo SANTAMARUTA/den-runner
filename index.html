@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Final Masterpiece (Stable+)</title>
+    <title>DENRUNNER - Masterpiece Edition (Final)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -140,9 +140,8 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v8.3) - Stable+
+ * Denrunner: Masterpiece Edition (v9.0) - Absolute Completion
  * 監修: アンバー / 実装: ヘルメス
- * [重要] ローディングフリーズ対策パッチ適用済み
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -154,18 +153,21 @@ const config = {
     groundHeight: 15, scoreRate: 0.1, bgmVolume: 0.5, stompSeVolume: 0.7, itemSeVolume: 0.7, missSeVolume: 0.8, startSeVolume: 0.7
 };
 
+// 修正②: BGMをmp3に変更 & 修正③: preloadから除外
 const assets = {
     player: 'DENさん走行時.gif', playerJump: 'DENさんジャンプ.png', playerMiss: 'DENさんクラッシュ.png',
     ruby: 'イザックるびぃ.png', enemyAuto: 'オート.png', enemySatoru: 'サトルさん.png', enemyArakatsu: 'アラカツさん.png',
-    bgm: 'DEN RUNNER Main Loop.wav', stompSe: '踏む音.mp3', itemSe: 'るびぃゲット.mp3', missSe: 'やられ音.mp3', startSe: 'スタート音.mp3',
+    stompSe: '踏む音.mp3', itemSe: 'るびぃゲット.mp3', missSe: 'やられ音.mp3', startSe: 'スタート音.mp3',
     title: 'DENrunnertop.png'
 };
 
 let currentState = GameState.LOADING;
 const loadedAssets = {}; 
+const assetStatus = {}; 
 let audioUnlocked = false;
 let animationId = null; 
 let bgmFadeInterval = null;
+let gameBgm = null; // 修正④用
 let lastTime = 0;
 let currentPlayerImageKey = null;
 let currentImgTag = 'main';
@@ -210,25 +212,22 @@ function initGame() {
     resizeGame();
 }
 
-/** * プリロード管理：フリーズ対策強化版 (修正①②③④)
+/** * プリロード管理：二重カウントバグ修正 & タイムアウト最適化版
  */
 function preloadAssets() {
     const keys = Object.keys(assets);
     let loadedCount = 0;
     const total = keys.length;
 
+    keys.forEach(key => { assetStatus[key] = false; });
+
     const onAssetComplete = (key, success = true) => {
-        if (loadedAssets[key] && success) return; // 既に処理済みなら無視
-        if (success) {
-            console.log("[Loaded]", key);
-        } else {
-            console.log("[Failed]", key);
-        }
-        
-        // 成功/失敗に関わらずカウントを進めてフリーズを防ぐ
+        if (assetStatus[key]) return;
+        assetStatus[key] = true;
+        // 修正⑦: 冗長なログを削除
         if (!loadedAssets[key]) {
             loadedCount++;
-            loadedAssets[key] = success; // フラグまたは実体を記録
+            loadedAssets[key] = success ? (loadedAssets[key] || true) : false;
             updateProgress(loadedCount, total);
         }
     };
@@ -237,30 +236,19 @@ function preloadAssets() {
         const path = assets[key];
         const isAudio = path.endsWith('.mp3') || path.endsWith('.wav');
 
-        // 強制タイムアウト (修正②)
+        // 修正⑥: タイムアウトを 2000ms に調整
         setTimeout(() => {
-            if (!loadedAssets[key]) {
-                console.warn("[Load Timeout]", key);
-                onAssetComplete(key, false);
-            }
-        }, 3000);
+            onAssetComplete(key, false);
+        }, 2000);
 
         if (isAudio) {
             const audio = new Audio();
             audio.src = path;
-            
-            // 修正①: oncanplaythrough から onloadeddata へ変更
             audio.onloadeddata = () => {
                 loadedAssets[key] = audio;
                 onAssetComplete(key, true);
             };
             audio.onerror = () => onAssetComplete(key, false);
-
-            // 修正④: BGMの能動的ロード
-            if (key === "bgm") {
-                audio.preload = "auto";
-                audio.load();
-            }
         } else {
             const img = new Image();
             img.src = path;
@@ -274,7 +262,6 @@ function preloadAssets() {
 }
 
 function updateProgress(count, total) {
-    // 修正⑤: 1個欠けても進行を許容する（loadedAssets内にフラグがあればOK）
     const percent = Math.floor((count / total) * 100);
     el.loadPercent.textContent = percent;
     
@@ -284,7 +271,7 @@ function updateProgress(count, total) {
             currentState = GameState.READY;
             el.loadingScreen.style.display = 'none';
             el.titleScreen.style.display = 'flex';
-        }, 500);
+        }, 300);
     }
 }
 
@@ -305,13 +292,13 @@ function resizeGame() {
     }
 }
 
-function playSe(key, volume) {
-    if (!audioUnlocked || !loadedAssets[key] || !(loadedAssets[key] instanceof Audio)) return;
-    try {
-        const base = loadedAssets[key];
-        const clone = base.cloneNode();
-        clone.volume = volume;
-        clone.play().catch(()=>{});
+// 修正⑤: playSeの軽量化
+function playSe(src, volume) {
+    if (!audioUnlocked) return;
+    try { 
+        const se = new Audio(src); 
+        se.volume = volume; 
+        se.play().catch(()=>{}); 
     } catch(e) {}
 }
 
@@ -343,18 +330,22 @@ function startGame() {
     currentState = GameState.PLAYING;
     el.overlay.style.display = 'none';
     
-    playSe('startSe', config.startSeVolume);
-    const bgm = loadedAssets['bgm'];
-    if (bgm && bgm instanceof Audio) {
-        bgm.currentTime = 0; bgm.volume = 0;
-        bgm.play().catch(() => {});
-        let v = 0;
-        bgmFadeInterval = setInterval(() => {
-            v += 0.02;
-            bgm.volume = Math.min(v, config.bgmVolume);
-            if (v >= config.bgmVolume) clearInterval(bgmFadeInterval);
-        }, 50);
-    }
+    playSe(assets.startSe, config.startSeVolume);
+
+    // 修正④: BGMはstartGameでmp3を直接読み込む
+    if (gameBgm) { gameBgm.pause(); gameBgm = null; }
+    gameBgm = new Audio('DEN RUNNER Main Loop.mp3');
+    gameBgm.loop = true;
+    gameBgm.volume = 0;
+    gameBgm.play().catch(() => {});
+
+    let v = 0;
+    bgmFadeInterval = setInterval(() => {
+        v += 0.02;
+        gameBgm.volume = Math.min(v, config.bgmVolume);
+        if (v >= config.bgmVolume) clearInterval(bgmFadeInterval);
+    }, 50);
+
     lastTime = performance.now();
     animationId = requestAnimationFrame(gameLoop);
 }
@@ -468,17 +459,18 @@ function updateEntities(ds, speed, timestamp) {
             pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left &&
             pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
             if (ent.classList.contains('item')) {
-                setTimeout(() => playSe('itemSe', config.itemSeVolume), 30);
+                setTimeout(() => playSe(assets.itemSe, config.itemSeVolume), 30);
                 ent.remove(); state.scoreRaw += 500;
                 if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
             } else {
+                // 修正①: バグ修正 (stompable定義)
                 const stompable = ent.classList.contains('stompEnemy') || ent.classList.contains('flyEnemy') || ent.classList.contains('obstacle');
                 if (stompable) {
                     const isFalling = state.velocityY > 0;
                     const pBottom = pRect.bottom - hitMargin;
                     const eTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
                     if (isFalling && pBottom < eTopLimit + 20) {
-                        playSe('stompSe', config.stompSeVolume);
+                        playSe(assets.stompSe, config.stompSeVolume);
                         createStompEffect(eRect.left + eRect.width/2, eRect.top);
                         state.stompCount++;
                         ent.remove(); state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
@@ -529,9 +521,8 @@ function triggerMiss() {
     if (state.isMissed) return;
     state.isMissed = true;
     setPlayerImage('playerMiss');
-    playSe('missSe', config.missSeVolume);
-    const bgm = loadedAssets['bgm'];
-    if (bgm && bgm instanceof Audio) bgm.volume = config.bgmVolume * 0.2;
+    playSe(assets.missSe, config.missSeVolume);
+    if (gameBgm) gameBgm.volume = config.bgmVolume * 0.2;
     el.player.classList.remove('player-spin-anim');
     state.velocityY = -12;
     setTimeout(() => {
@@ -551,8 +542,7 @@ function startFever() {
 }
 
 function showResult() {
-    const bgm = loadedAssets['bgm'];
-    if (bgm && bgm instanceof Audio) { bgm.pause(); bgm.currentTime = 0; }
+    if (gameBgm) { gameBgm.pause(); gameBgm.currentTime = 0; }
     if (animationId) cancelAnimationFrame(animationId);
     const isVal = state.playTime >= 5 && state.scoreRaw >= 1000 && state.stompCount > 0;
     let total = 45 + Math.floor(Math.random()*5);

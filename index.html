@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition (Final v13.2)</title>
+    <title>DENRUNNER - Masterpiece Edition (Final v13.3)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -140,9 +140,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v13.2) - Final Absolute Zero Infinity
+ * Denrunner: Masterpiece Edition (v13.3) - Final Absolute Zero Infinity
  * 監修: アンバー / 実装: ヘルメス
- * [完全終了版] DOM完全排除 & 論理座標による判定の完全整合パッチ
+ * [最終修正] Fever時間管理のループ統合(setTimeout廃止) & 当たり判定ヒットマージン適用
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -170,6 +170,7 @@ let audioUnlocked = false;
 let animationId = null; 
 let bgmFadeInterval = null;
 let spinTimeoutId = null;
+let feverTimeoutId = null; // 修正①：変数を定義 (実際はEND_TIME管理に移行)
 let gameBgm = null;
 let lastTime = 0;
 let currentPlayerImageKey = null;
@@ -183,7 +184,8 @@ let state = {
     running: false, isMissed: false, distance: 0, scoreRaw: 0, 
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
     itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-    isAboveHole: false, playTime: 0, stompCount: 0
+    isAboveHole: false, playTime: 0, stompCount: 0,
+    feverEndTime: 0 // 修正②：Fever終了時間を管理
 };
 
 const el = {
@@ -289,7 +291,7 @@ function resetGameState() {
         running: true, isMissed: false, distance: 0, scoreRaw: 0, 
         speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
         itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-        isAboveHole: false, playTime: 0, stompCount: 0
+        isAboveHole: false, playTime: 0, stompCount: 0, feverEndTime: 0
     };
     el.player.style.display = 'block';
     el.player.style.bottom = config.groundHeight + '%';
@@ -358,6 +360,14 @@ function update(dt, timestamp) {
     }
 
     state.playTime += dt / 1000;
+
+    // 修正②：Fever終了判定をループ内で管理 (setTimeout完全廃止)
+    if (state.isFever && performance.now() > state.feverEndTime) {
+        state.isFever = false;
+        state.feverGauge = 0;
+        el.container.classList.remove('fever-mode');
+    }
+
     if (!state.isFever) state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
     const totalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
 
@@ -391,15 +401,17 @@ function update(dt, timestamp) {
         while (state.holeTimer >= config.holeInterval) { createEntity('hole'); state.holeTimer -= config.holeInterval; }
     }
 
-    // プレイヤー位置を数値で保持（判定用・修正②：pRectを完全削除し数値演算に移行）
+    // プレイヤー数値座標算出
     const playerLeft = window.innerWidth * 0.1;
     const playerBottomHeight = state.playerY;
-    const groundTop = window.innerHeight * (1 - config.groundHeight / 100);
+    const groundTop = window.innerHeight * (1 - config.groundHeight/100);
     const playerTop = groundTop - playerBottomHeight - 80;
     const playerRight = playerLeft + 80;
     const playerBottomPx = playerTop + 80;
 
-    // エンティティ更新 & メモリ内座標判定 (修正①〜⑥)
+    // 当たり判定改善：ヒットマージン導入 (修正指示②)
+    const hitMargin = 12;
+
     let checked = 0;
     state.isAboveHole = false;
 
@@ -411,8 +423,8 @@ function update(dt, timestamp) {
         x -= (totalSpeed / 12) * ds;
         entObj.x = x;
 
-        let hitMargin = 14; 
-        if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
+        let spriteHitMargin = 14; 
+        if (ent.classList.contains('enemy-arakatsu')) spriteHitMargin = 35;
         let wobbleX = 0; 
         if (ent.classList.contains('enemy-satoru')) { const phase = entObj.phase; wobbleX = Math.sin(timestamp / 150 + phase) * 10; }
         let autoY = 0;
@@ -429,19 +441,12 @@ function update(dt, timestamp) {
 
         if (x < -25) { ent.remove(); activeEntities.splice(i, 1); continue; }
 
-        /**
-         * [完全完成パッチ] 指示に基づき判定ロジックを100%数値化
-         */
         if (x < 50 && x > -10 && checked < 3) {
             checked++;
             
-            // 修正①：groundTopを動的に算出
             const enemyLeft = x * 0.01 * window.innerWidth + wobbleX;
-            // 修正①：敵のTop座標をgroundTop基準で算出
-            const enemyTop = groundTop + (-autoY + bobY) - entObj.height; 
-            
-            // アイテムや飛行敵は個別の基準yPercentを持つ
-            let actualEnemyTop = enemyTop;
+            const enemyTopDefault = groundTop + (-autoY + bobY) - entObj.height; 
+            let actualEnemyTop = enemyTopDefault;
             if (entObj.type === 'flyEnemy' || entObj.type === 'item') {
                 actualEnemyTop = window.innerHeight * (1 - entObj.yPercent / 100) + (-autoY + bobY) - entObj.height;
             }
@@ -455,9 +460,11 @@ function update(dt, timestamp) {
                 continue;
             }
 
-            // 当たり判定：数値比較のみ実行（修正⑤：DOM完全排除）
-            if (playerLeft < enemyRight && playerRight > enemyLeft &&
-                playerTop < enemyBottom && playerBottomPx > actualEnemyTop) {
+            // 当たり判定改善：hitMarginを適用 (修正指示②)
+            if (playerLeft + hitMargin < enemyRight &&
+                playerRight - hitMargin > enemyLeft &&
+                playerTop + hitMargin < enemyBottom &&
+                playerBottomPx - hitMargin > actualEnemyTop) {
                 
                 if (ent.classList.contains('item')) {
                     playSe(assets.itemSe, config.itemSeVolume);
@@ -468,7 +475,7 @@ function update(dt, timestamp) {
                     const stompable = ent.classList.contains('stompEnemy') || ent.classList.contains('flyEnemy') || ent.classList.contains('obstacle');
                     if (stompable) {
                         const isFalling = state.velocityY > 0;
-                        const pBottom = playerBottomPx - hitMargin;
+                        const pBottom = playerBottomPx - spriteHitMargin;
                         const eTopLimit = ent.classList.contains('flyEnemy') ? actualEnemyTop + 35 : actualEnemyTop + 20;
                         if (isFalling && pBottom < eTopLimit + 20) {
                             playSe(assets.stompSe, config.stompSeVolume);
@@ -586,12 +593,10 @@ function triggerMiss() {
 }
 
 function startFever() {
-    if (feverTimeoutId) clearTimeout(feverTimeoutId);
-    state.isFever = true; el.container.classList.add('fever-mode');
-    feverTimeoutId = setTimeout(() => {
-        if (currentState !== GameState.PLAYING) return;
-        state.isFever = false; state.feverGauge = 0; el.container.classList.remove('fever-mode');
-    }, config.feverDuration);
+    // 修正②：setTimeoutを廃止し終了時間のみ設定
+    state.isFever = true; 
+    el.container.classList.add('fever-mode');
+    state.feverEndTime = performance.now() + config.feverDuration;
 }
 
 function showResult() {

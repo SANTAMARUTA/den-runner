@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition (Final Absolute Zero)</title>
+    <title>DENRUNNER - Masterpiece Edition (Final v12.0)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -45,7 +45,6 @@
             will-change: transform;
             backface-visibility: hidden;
             transform: translateZ(0);
-            /* 初期位置の設定 (JS側で更新) */
             left: 0; top: 0;
         }
         #player img {
@@ -144,9 +143,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v11.3) - Final Absolute Zero
+ * Denrunner: Masterpiece Edition (v12.0) - Final Absolute Zero
  * 監修: アンバー / 実装: ヘルメス
- * [完全終了版] DOM座標取得を完全廃止し、state管理座標へと一元化。
+ * [完全完成] 全座標系をTop基準（左上）に統一。ロジックと描画の完全同期パッチ。
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -188,9 +187,8 @@ let state = {
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
     itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
     isAboveHole: false, playTime: 0, stompCount: 0,
-    // 修正① & ②：プレイヤー座標をstate管理に一元化
-    playerX: 0, // left位置
-    playerYpx: 0 // top位置
+    playerX: 0, // 中心位置（メモリ管理）
+    playerYpx: 0 // 足元位置（地面基準の絶対px・メモリ管理）
 };
 
 const el = {
@@ -281,19 +279,10 @@ function unlockAudio() {
     audioUnlocked = true;
 }
 
-/** * 修正④：リサイズ対応（DOMに依存しない座標再計算）
- */
 function resizeGame() {
     const groundY = window.innerHeight * (1 - config.groundHeight / 100);
-    
-    // playerXを固定値にする (指示②)
     state.playerX = window.innerWidth * 0.1;
-    
-    // playerYpxを自前計算 (指示③)
-    state.playerYpx = groundY - state.playerY - 80;
-
-    // 初期化時などの描画反映
-    el.player.style.left = state.playerX + "px";
+    state.playerYpx = groundY - state.playerY;
 }
 
 function playSe(src, volume) {
@@ -313,8 +302,8 @@ function resetGameState() {
         speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
         itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
         isAboveHole: false, playTime: 0, stompCount: 0,
-        playerX: window.innerWidth * 0.1, // 指示②
-        playerYpx: 0 // 次のupdateで計算
+        playerX: window.innerWidth * 0.1,
+        playerYpx: 0 
     };
     
     el.player.style.display = 'block';
@@ -383,14 +372,15 @@ function gameLoop(timestamp) {
 
 function update(dt, timestamp) {
     const ds = dt / 16.66;
+    const groundY = window.innerHeight * (1 - config.groundHeight / 100);
+
     if (state.isMissed) {
         state.velocityY += config.gravity * ds;
         state.playerY -= state.velocityY * ds;
-        // 落下中も座標計算を維持
-        const groundY = window.innerHeight * (1 - config.groundHeight / 100);
-        state.playerYpx = groundY - state.playerY - 80;
+        state.playerYpx = groundY - state.playerY;
         return;
     }
+
     state.playTime += dt / 1000;
     if (!state.isFever) state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
     const totalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
@@ -398,6 +388,7 @@ function update(dt, timestamp) {
     state.velocityY += config.gravity * ds;
     state.playerY -= state.velocityY * ds;
 
+    // 着地判定 (0.5pxのバッファ)
     if (state.playerY <= 0.5) {
         if (!state.isAboveHole) {
             state.playerY = 0; state.velocityY = 0; state.jumps = 0;
@@ -405,10 +396,8 @@ function update(dt, timestamp) {
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
 
-    // 修正①③：DOM参照を排除し、自前計算のみでプレイヤー座標を管理
-    const groundY = window.innerHeight * (1 - config.groundHeight / 100);
     state.playerX = window.innerWidth * 0.1;
-    state.playerYpx = groundY - state.playerY - 80;
+    state.playerYpx = groundY - state.playerY;
 
     const moveDist = totalSpeed * ds;
     state.distance += moveDist;
@@ -435,22 +424,18 @@ function update(dt, timestamp) {
     for (let i = stompEffects.length - 1; i >= 0; i--) {
         const fx = stompEffects[i];
         fx.life -= dt;
-        if (fx.life <= 0) {
-            fx.el.remove();
-            stompEffects.splice(i, 1);
-        }
+        if (fx.life <= 0) { fx.el.remove(); stompEffects.splice(i, 1); }
     }
 }
 
 function draw() {
-    // プレイヤー描画に translate(x, y) を採用しGPU加速
-    el.player.style.transform = `translate(${state.playerX}px, ${state.playerYpx}px)`;
+    const pW = 80, pH = 80;
+    // 描画補正：Top（y-80）と左端（x-40）をtranslateに渡す
+    el.player.style.transform = `translate(${state.playerX - pW/2}px, ${state.playerYpx - pH}px)`;
     el.score.textContent = Math.floor(state.scoreRaw);
     el.feverBar.style.width = state.feverGauge + '%';
 }
 
-/** * エンティティ生成：指示通りのY座標設定 (修正①)
- */
 function createEntity(type) {
     if (activeEntities.length > 30) return; 
 
@@ -466,15 +451,12 @@ function createEntity(type) {
 
     const groundTop = window.innerHeight * (1 - config.groundHeight / 100);
 
-    // 修正①：指示通りのY座標計算
     if (type === 'item') {
         entityData.y = window.innerHeight * (0.25 + Math.random() * 0.35);
         if (loadedAssets.ruby && loadedAssets.ruby instanceof Image) { obj.style.backgroundImage = `url(${loadedAssets.ruby.src})`; obj.style.backgroundColor = 'transparent'; }
         entityData.width = 45; entityData.height = 45;
     } else if (type === 'obstacle') {
         obj.classList.add('enemy-auto');
-        entityData.y = window.innerHeight * (config.groundHeight / 100); // 指示通りだが、これは地面からの高さ用。
-        // 論理座標 y を描画用のスクリーン空間へ再配置 (地面の上に設置)
         entityData.y = groundTop - 110; 
         if (loadedAssets.enemyAuto && loadedAssets.enemyAuto instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyAuto.src})`; else obj.classList.add('fallback-enemy');
         entityData.width = 110; entityData.height = 110;
@@ -497,12 +479,16 @@ function createEntity(type) {
     activeEntities.push(entityData);
 }
 
-/** * エンティティ更新：自前座標(eY = ent.y)による当たり判定 (修正②③④)
+/** * エンティティ更新：判定ロジックのTop基準統一 (修正①②)
  */
 function updateEntities(ds, speed, timestamp, dt) {
-    // キャッシュされたメモリ上の座標を使用 (指示②③)
-    const pX = state.playerX, pY = state.playerYpx;
-    const pW = 80, pH = 80;
+    // 修正①：プレイヤーもTop（左上）基準に統一
+    const pX = state.playerX;
+    const pY = state.playerYpx - 80; // 足元から全高(80)を引いてTopにする
+    
+    const pW = 80;
+    const pH = 80;
+    
     state.isAboveHole = false;
 
     for (let i = activeEntities.length - 1; i >= 0; i--) {
@@ -510,36 +496,36 @@ function updateEntities(ds, speed, timestamp, dt) {
         ent.x -= (speed * 0.8) * ds;
 
         let wobbleX = 0; if (ent.type === 'stompEnemy') wobbleX = Math.sin(timestamp / 150 + ent.phase) * 10;
-        
         let autoY = 0;
         if (ent.type === 'obstacle') {
             ent.jumpTimer -= 16.6 * ds;
             if (ent.jumpTimer <= 0 && ent.yOffset === 0) { ent.yVel = -12; ent.jumpTimer = 2000 + Math.random() * 3000; }
             if (ent.yOffset > 0 || ent.yVel !== 0) {
-                ent.yVel += 0.6 * ds;
-                ent.yOffset -= ent.yVel * ds;
+                ent.yVel += 0.6 * ds; ent.yOffset -= ent.yVel * ds;
                 if (ent.yOffset <= 0) { ent.yOffset = 0; ent.yVel = 0; }
             }
             autoY = ent.yOffset;
         }
         let bobY = 0; if (ent.type === 'flyEnemy') bobY = Math.sin(timestamp / 200) * 15;
 
-        // メモリ上の y座標更新と translate 描画 (修正②③)
         const displayY = ent.y + (-autoY + bobY);
-
         ent.el.style.transform = `translate(${ent.x + wobbleX}px, ${displayY}px)`; 
 
         if (ent.x < -200) { ent.el.remove(); activeEntities.splice(i, 1); continue; }
 
-        // 修正④：当たり判定 (eY = displayY というメモリ数値を使用)
-        const eX = ent.x + wobbleX, eY = displayY;
-        const eW = ent.width, eH = ent.height;
+        const eX = ent.x + wobbleX, eY = displayY, eW = ent.width, eH = ent.height;
 
-        if (ent.type === 'hole') { if (pX + pW/2 > eX && pX + pW/2 < eX + eW) state.isAboveHole = true; continue; }
+        // 穴の判定 (足元の中心点xを使用)
+        if (ent.type === 'hole') { if (pX > eX && pX < eX + eW) state.isAboveHole = true; continue; }
 
         let hitMargin = 22; if (ent.type === 'flyEnemy') hitMargin = 35;
 
-        if (pX + hitMargin < eX + eW && pX + pW - hitMargin > eX && pY + hitMargin < eY + eH && pY + pH - hitMargin > eY) {
+        // 修正②：判定も完全Top基準によるAABB矩形判定 (指示通りのロジック)
+        if (pX - pW/2 + hitMargin < eX + eW &&
+            pX + pW/2 - hitMargin > eX &&
+            pY + hitMargin < eY + eH &&
+            pY + pH - hitMargin > eY) {
+            
             if (ent.type === 'item') {
                 playSe(assets.itemSe, config.itemSeVolume);
                 ent.el.remove(); activeEntities.splice(i, 1);
@@ -548,7 +534,7 @@ function updateEntities(ds, speed, timestamp, dt) {
                 const stompable = (ent.type === 'stompEnemy' || ent.type === 'flyEnemy' || ent.type === 'obstacle');
                 if (stompable) {
                     const isFalling = state.velocityY > 0;
-                    const pBottom = pY + pH - hitMargin;
+                    const pBottom = pY + pH - hitMargin; 
                     const eTopLimit = (ent.type === 'flyEnemy') ? eY + 35 : eY + 20;
                     if (isFalling && pBottom < eTopLimit + 20) {
                         playSe(assets.stompSe, config.stompSeVolume); createStompEffect(eX + eW/2, eY);
@@ -564,8 +550,7 @@ function updateEntities(ds, speed, timestamp, dt) {
 
 function handleInput() {
     if (currentState !== GameState.PLAYING || state.isMissed || state.jumps >= 2) return;
-    const isAir = state.playerY > 0.5;
-    if (isAir && state.jumps >= 1) {
+    if (state.playerY > 0.5 && state.jumps >= 1) {
         if (spinTimeoutId) clearTimeout(spinTimeoutId);
         el.player.classList.remove('player-spin-anim'); void el.player.offsetWidth;
         el.player.classList.add('player-spin-anim');

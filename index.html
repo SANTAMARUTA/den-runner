@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition (Experience Perfect)</title>
+    <title>DENRUNNER - Masterpiece Edition (Performance Zero)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -140,9 +140,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v9.4) - Absolute Completion
+ * Denrunner: Masterpiece Edition (v11.0) - Performance Zero
  * 監修: アンバー / 実装: ヘルメス
- * [重要] スピン演出復活 & リトライUX改善パッチ適用済み
+ * [究極最適化] 配列管理 & DOM参照削減 & 音声プール再利用
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -165,20 +165,27 @@ let currentState = GameState.LOADING;
 const loadedAssets = {}; 
 const assetStatus = {}; 
 const timeoutMap = {}; 
+const sePool = {}; // 修正③：Audio再利用プール
 let audioUnlocked = false;
 let animationId = null; 
 let bgmFadeInterval = null;
-let spinTimeoutId = null; // スピン演出用
+let spinTimeoutId = null;
 let gameBgm = null;
 let lastTime = 0;
 let currentPlayerImageKey = null;
 let currentImgTag = 'main';
 
+// 修正①：エフェクト配列管理
+let activeEntities = []; 
+let stompEffects = []; 
+let seCount = 0; 
+
 let state = {
     running: false, isMissed: false, distance: 0, scoreRaw: 0, 
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
     itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-    isAboveHole: false, playTime: 0, stompCount: 0
+    isAboveHole: false, playTime: 0, stompCount: 0,
+    playerX: 0, playerYpx: 0 // 修正②：DOM参照を減らすためのキャッシュ
 };
 
 const el = {
@@ -209,7 +216,6 @@ function initGame() {
         unlockAudio();
         startGame();
     });
-    // 修正：リロードせずに即再開 (Amber指示)
     document.getElementById('retry-btn').addEventListener('click', () => { 
         startGame(); 
     });
@@ -226,9 +232,7 @@ function preloadAssets() {
     const onAssetComplete = (key, success = true) => {
         if (assetStatus[key]) return;
         assetStatus[key] = true;
-        if (!loadedAssets[key]) {
-            loadedAssets[key] = success ? true : false;
-        }
+        if (!loadedAssets[key]) loadedAssets[key] = success ? true : false;
         loadedCount++;
         updateProgress(loadedCount, total);
     };
@@ -236,7 +240,6 @@ function preloadAssets() {
     keys.forEach(key => {
         const path = assets[key];
         timeoutMap[key] = setTimeout(() => onAssetComplete(key, false), 2000);
-
         if (path.endsWith('.mp3') || path.endsWith('.wav')) {
             const audio = new Audio(); audio.src = path;
             audio.onloadeddata = () => { clearTimeout(timeoutMap[key]); loadedAssets[key] = audio; onAssetComplete(key, true); };
@@ -276,12 +279,27 @@ function unlockAudio() {
 function resizeGame() {
     if (currentState === GameState.PLAYING || currentState === GameState.READY) {
         el.player.style.left = "10%";
+        // 座標キャッシュの即時更新
+        state.playerX = el.player.offsetLeft;
+        state.playerYpx = el.player.offsetTop;
     }
 }
 
+/** * 修正③：Audio再利用・同時再生制限
+ */
 function playSe(src, volume) {
-    if (!audioUnlocked) return;
-    try { const se = new Audio(src); se.volume = volume; se.play().catch(()=>{}); } catch(e) {}
+    if (!audioUnlocked || seCount > 5) return;
+
+    if (!sePool[src]) {
+        sePool[src] = new Audio(src);
+    }
+
+    try { 
+        seCount++;
+        const se = sePool[src].cloneNode(); 
+        se.volume = volume; 
+        se.play().catch(()=>{}).finally(() => seCount--);
+    } catch(e) { seCount--; }
 }
 
 function resetGameState() {
@@ -289,7 +307,8 @@ function resetGameState() {
         running: true, isMissed: false, distance: 0, scoreRaw: 0, 
         speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
         itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-        isAboveHole: false, playTime: 0, stompCount: 0
+        isAboveHole: false, playTime: 0, stompCount: 0,
+        playerX: 0, playerYpx: 0
     };
     el.player.style.display = 'block';
     el.player.style.bottom = config.groundHeight + '%';
@@ -300,19 +319,20 @@ function resetGameState() {
     currentPlayerImageKey = null; currentImgTag = 'main';
     el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0;
     setPlayerImage('player');
-    document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole, .stomp-effect').forEach(n => n.remove());
+
+    activeEntities.forEach(ent => ent.el.remove());
+    activeEntities = [];
+    stompEffects.forEach(fx => fx.remove());
+    stompEffects = [];
 }
 
 function startGame() {
-    // クリーンアップ (Amber指示)
     if (animationId) cancelAnimationFrame(animationId);
     if (bgmFadeInterval) clearInterval(bgmFadeInterval);
     if (spinTimeoutId) clearTimeout(spinTimeoutId);
 
     resetGameState();
     currentState = GameState.PLAYING;
-    
-    // UIを隠す
     el.overlay.style.display = 'none';
     el.titleScreen.style.display = 'none';
     el.resultScreen.style.display = 'none';
@@ -327,7 +347,7 @@ function startGame() {
     let v = 0;
     bgmFadeInterval = setInterval(() => {
         v += 0.02;
-        gameBgm.volume = Math.min(v, config.bgmVolume);
+        if (gameBgm) gameBgm.volume = Math.min(v, config.bgmVolume);
         if (v >= config.bgmVolume) clearInterval(bgmFadeInterval);
     }, 50);
 
@@ -340,8 +360,15 @@ function gameLoop(timestamp) {
         animationId = null;
         return; 
     }
-    const deltaTime = Math.min(32, timestamp - lastTime); 
+    const deltaTime = Math.min(100, timestamp - lastTime); 
     lastTime = timestamp;
+
+    // 修正⑤：さらに安定させるためのフレームスキップ強化
+    if (deltaTime > 40) {
+        animationId = requestAnimationFrame(gameLoop);
+        return;
+    }
+
     update(deltaTime, timestamp);
     draw();
     animationId = requestAnimationFrame(gameLoop);
@@ -357,10 +384,10 @@ function update(dt, timestamp) {
     state.playTime += dt / 1000;
     if (!state.isFever) state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
     const totalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
+
     state.velocityY += config.gravity * ds;
     state.playerY -= state.velocityY * ds;
 
-    // 修正：着地判定を厳密化 (Amber指示：0.5に余裕を持たせる)
     if (state.playerY <= 0.5) {
         if (!state.isAboveHole) {
             state.playerY = 0; state.velocityY = 0; state.jumps = 0;
@@ -368,14 +395,22 @@ function update(dt, timestamp) {
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
 
+    // 修正②：DOM参照回数を減らすため、座標をstateに保持
+    state.playerX = el.player.offsetLeft;
+    state.playerYpx = el.player.offsetTop;
+
     const moveDist = totalSpeed * ds;
-    state.distance += moveDist; state.scoreRaw += moveDist * config.scoreRate;
+    state.distance += moveDist;
+    state.scoreRaw += moveDist * config.scoreRate;
+
     const bgPos = (state.distance % window.innerWidth);
     el.layerMid.style.transform = `translateX(${-bgPos * 0.4}px)`;
     el.layerBack.style.transform = `translateX(${-bgPos * 0.15}px)`;
     el.ground.style.transform = `translateX(${-bgPos}px)`;
+
     state.itemTimer += dt;
     while (state.itemTimer >= config.itemInterval) { createEntity('item'); state.itemTimer -= config.itemInterval; }
+
     if (!state.isFever) {
         state.obsTimer += dt; state.stompTimer += dt; state.flyTimer += dt; state.holeTimer += dt;
         while (state.obsTimer >= config.obsInterval) { createEntity('obstacle'); state.obsTimer -= config.obsInterval; }
@@ -383,6 +418,7 @@ function update(dt, timestamp) {
         while (state.flyTimer >= config.flyInterval) { createEntity('flyEnemy'); state.flyTimer -= config.flyInterval; }
         while (state.holeTimer >= config.holeInterval) { createEntity('hole'); state.holeTimer -= config.holeInterval; }
     }
+
     updateEntities(ds, totalSpeed, timestamp);
 }
 
@@ -393,87 +429,150 @@ function draw() {
     el.feverBar.style.width = state.feverGauge + '%';
 }
 
+/** * 修正④：最大出現数を30体に制限 (安定性優先)
+ */
 function createEntity(type) {
+    if (activeEntities.length > 30) return; 
+
     const obj = document.createElement('div');
     obj.className = type;
-    obj.dataset.x = window.innerWidth + 150; 
+    const startX = window.innerWidth + 150;
+    obj.style.left = startX + 'px';
+
+    const entityData = {
+        el: obj,
+        type: type,
+        x: startX,
+        width: 0, height: 0,
+        phase: Math.random() * Math.PI * 2,
+        yVel: 0, yOffset: 0,
+        jumpTimer: Math.random() * 2000
+    };
+
     if (type === 'item') {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
         if (loadedAssets.ruby && loadedAssets.ruby instanceof Image) { obj.style.backgroundImage = `url(${loadedAssets.ruby.src})`; obj.style.backgroundColor = 'transparent'; }
+        entityData.width = 45; entityData.height = 45;
     } else if (type === 'obstacle') {
         obj.classList.add('enemy-auto');
         if (loadedAssets.enemyAuto && loadedAssets.enemyAuto instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyAuto.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = config.groundHeight + '%';
-        obj.dataset.yVel = 0; obj.dataset.yOffset = 0; obj.dataset.jumpTimer = Math.random() * 2000;
+        entityData.width = 110; entityData.height = 110;
     } else if (type === 'stompEnemy') {
-        obj.classList.add('enemy-satoru'); obj.dataset.phase = Math.random() * Math.PI * 2;
+        obj.classList.add('enemy-satoru');
         if (loadedAssets.enemySatoru && loadedAssets.enemySatoru instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemySatoru.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = config.groundHeight + '%';
+        entityData.width = 115; entityData.height = 100;
     } else if (type === 'flyEnemy') {
         obj.classList.add('enemy-arakatsu');
         if (loadedAssets.enemyArakatsu && loadedAssets.enemyArakatsu instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyArakatsu.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = (35 + Math.random() * 25) + '%';
-    } else if (type === 'hole') { obj.style.bottom = '0'; }
+        entityData.width = 105; entityData.height = 85;
+    } else if (type === 'hole') {
+        obj.style.bottom = '0';
+        entityData.width = 140;
+    }
+
     el.container.appendChild(obj);
+    activeEntities.push(entityData);
 }
 
 function updateEntities(ds, speed, timestamp) {
-    const pRect = el.player.getBoundingClientRect();
-    const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole');
+    const pX = state.playerX;
+    const pY = state.playerYpx;
+    const pW = 80, pH = 80;
+
     state.isAboveHole = false;
-    for (const ent of entities) {
-        let x = parseFloat(ent.dataset.x); x -= (speed * 0.8) * ds; ent.dataset.x = x;
-        let hitMargin = 22; if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
-        let wobbleX = 0; if (ent.classList.contains('enemy-satoru')) { const phase = parseFloat(ent.dataset.phase || 0); wobbleX = Math.sin(timestamp / 150 + phase) * 10; }
+
+    for (let i = activeEntities.length - 1; i >= 0; i--) {
+        const ent = activeEntities[i];
+        ent.x -= (speed * 0.8) * ds;
+
+        let wobbleX = 0;
+        if (ent.type === 'stompEnemy') wobbleX = Math.sin(timestamp / 150 + ent.phase) * 10;
+        
         let autoY = 0;
-        if (ent.classList.contains('enemy-auto')) {
-            let yVel = parseFloat(ent.dataset.yVel), yOff = parseFloat(ent.dataset.yOffset), jTim = parseFloat(ent.dataset.jumpTimer);
-            jTim -= 16.6 * ds; if (jTim <= 0 && yOff === 0) { yVel = -12; jTim = 2000 + Math.random() * 3000; }
-            if (yOff > 0 || yVel !== 0) { yVel += 0.6 * ds; yOff -= yVel * ds; if (yOff <= 0) { yOff = 0; yVel = 0; } }
-            ent.dataset.yVel = yVel; ent.dataset.yOffset = yOff; ent.dataset.jumpTimer = jTim; autoY = yOff;
+        if (ent.type === 'obstacle') {
+            ent.jumpTimer -= 16.6 * ds;
+            if (ent.jumpTimer <= 0 && ent.yOffset === 0) { ent.yVel = -12; ent.jumpTimer = 2000 + Math.random() * 3000; }
+            if (ent.yOffset > 0 || ent.yVel !== 0) {
+                ent.yVel += 0.6 * ds;
+                ent.yOffset -= ent.yVel * ds;
+                if (ent.yOffset <= 0) { ent.yOffset = 0; ent.yVel = 0; }
+            }
+            autoY = ent.yOffset;
         }
-        let bobY = 0; if (ent.classList.contains('enemy-arakatsu')) bobY = Math.sin(timestamp / 200) * 15;
-        ent.style.left = (x + wobbleX) + 'px'; ent.style.transform = `translateY(${-autoY + bobY}px)`;
-        const eRect = ent.getBoundingClientRect();
-        if (ent.classList.contains('hole')) { const pCenter = pRect.left + pRect.width / 2; if (pCenter > eRect.left && pCenter < eRect.right) state.isAboveHole = true; }
-        if (!ent.classList.contains('hole') && pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left && pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
-            if (ent.classList.contains('item')) {
+        let bobY = 0;
+        if (ent.type === 'flyEnemy') bobY = Math.sin(timestamp / 200) * 15;
+
+        ent.el.style.left = (ent.x + wobbleX) + 'px';
+        ent.el.style.transform = `translateY(${-autoY + bobY}px)`;
+
+        // 削除強化：画面外なら即splice
+        if (ent.x < -200) {
+            ent.el.remove();
+            activeEntities.splice(i, 1);
+            continue;
+        }
+
+        const eX = ent.x + wobbleX;
+        const eY = ent.el.offsetTop;
+        const eW = ent.width, eH = ent.height;
+
+        if (ent.type === 'hole') {
+            if (pX + pW/2 > eX && pX + pW/2 < eX + eW) state.isAboveHole = true;
+            continue;
+        }
+
+        let hitMargin = 22;
+        if (ent.type === 'flyEnemy') hitMargin = 35;
+
+        if (pX + hitMargin < eX + eW &&
+            pX + pW - hitMargin > eX &&
+            pY + hitMargin < eY + eH &&
+            pY + pH - hitMargin > eY) {
+            
+            if (ent.type === 'item') {
                 setTimeout(() => playSe(assets.itemSe, config.itemSeVolume), 30);
-                ent.remove(); state.scoreRaw += 500;
+                ent.el.remove();
+                activeEntities.splice(i, 1);
+                state.scoreRaw += 500;
                 if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
             } else {
-                const stompable = ent.classList.contains('stompEnemy') || ent.classList.contains('flyEnemy') || ent.classList.contains('obstacle');
+                const stompable = (ent.type === 'stompEnemy' || ent.type === 'flyEnemy' || ent.type === 'obstacle');
                 if (stompable) {
                     const isFalling = state.velocityY > 0;
-                    const pBottom = pRect.bottom - hitMargin;
-                    const eTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
+                    const pBottom = pY + pH - hitMargin;
+                    const eTopLimit = (ent.type === 'flyEnemy') ? eY + 35 : eY + 20;
+
                     if (isFalling && pBottom < eTopLimit + 20) {
-                        playSe(assets.stompSe, config.stompSeVolume); createStompEffect(eRect.left + eRect.width/2, eRect.top);
-                        state.stompCount++; ent.remove(); state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
+                        playSe(assets.stompSe, config.stompSeVolume);
+                        createStompEffect(eX + eW/2, eY);
+                        state.stompCount++;
+                        ent.el.remove();
+                        activeEntities.splice(i, 1);
+                        state.scoreRaw += 500;
+                        state.velocityY = config.stompBouncePower;
+                        state.jumps = 1;
                         if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
                     } else if (!state.isFever) { triggerMiss(); return; }
                 }
             }
         }
-        if (x < -200) ent.remove();
     }
 }
 
 function handleInput() {
     if (currentState !== GameState.PLAYING || state.isMissed || state.jumps >= 2) return;
-
-    // 演出修正：空中での再ジャンプ時にスピンを発動 (Amber指示)
     const isAir = state.playerY > 0;
     if (isAir && state.jumps >= 1) {
         if (spinTimeoutId) clearTimeout(spinTimeoutId);
         el.player.classList.remove('player-spin-anim');
-        void el.player.offsetWidth; // リフロー強制
+        void el.player.offsetWidth;
         el.player.classList.add('player-spin-anim');
         spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
     }
-
-    state.velocityY = config.jumpPower;
-    state.jumps++;
+    state.velocityY = config.jumpPower; state.jumps++;
     setPlayerImage('playerJump');
 }
 
@@ -488,14 +587,26 @@ function setPlayerImage(key) {
     currentPlayerImageKey = key;
 }
 
+/** * 修正①：stomp-effectも配列で管理 (最重要)
+ */
 function createStompEffect(x, y) {
+    if (stompEffects.length > 10) return;
+
     const colors = ['#fff', '#ff0', '#0ff'];
     for (let i = 0; i < 3; i++) {
         const fx = document.createElement('div');
         fx.className = 'stomp-effect'; fx.textContent = '★';
         fx.style.color = colors[Math.floor(Math.random() * colors.length)];
-        fx.style.left = (x + (Math.random()-0.5)*40) + 'px'; fx.style.top = (y + (Math.random()-0.5)*30) + 'px';
-        el.container.appendChild(fx); setTimeout(() => fx.remove(), 400);
+        fx.style.left = x + 'px'; fx.style.top = y + 'px';
+        
+        el.container.appendChild(fx);
+        stompEffects.push(fx);
+
+        // 400ms後に配列とDOMから削除
+        setTimeout(() => {
+            fx.remove();
+            stompEffects = stompEffects.filter(e => e !== fx);
+        }, 400);
     }
 }
 
@@ -526,34 +637,24 @@ function startFever() {
 function showResult() {
     if (gameBgm) { gameBgm.pause(); gameBgm.currentTime = 0; }
     if (animationId) cancelAnimationFrame(animationId);
-
     const isVal = state.playTime >= 5 && state.scoreRaw >= 1000 && state.stompCount > 0;
     let total = 45 + Math.floor(Math.random()*5);
     let skill = { technique: 40, attack: 40, jump: 40, ruby: 40 };
-
     if (isVal) {
-        skill.technique = Math.min(100, 60 + state.stompCount * 2);
-        skill.attack = Math.min(100, 50 + state.stompCount * 3);
-        skill.jump = Math.min(100, 60 + (state.playTime * 1.2));
-        skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
+        skill.technique = Math.min(100, 60 + state.stompCount * 2); skill.attack = Math.min(100, 50 + state.stompCount * 3);
+        skill.jump = Math.min(100, 60 + (state.playTime * 1.2)); skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
         const raw = Math.round(skill.technique*0.25 + skill.attack*0.25 + skill.jump*0.25 + skill.ruby*0.25);
         total = Math.round(raw);
         if (raw >= 80 && raw <= 95) {
-            const b = Math.random();
-            if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90;
+            const b = Math.random(); if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90;
         }
         if (raw > 95) total = (state.playTime > 50) ? 100 : 95 + Math.floor(Math.random()*3);
     }
-
-    el.overlay.style.display = 'flex';
-    el.titleScreen.style.display = 'none';
-    el.resultScreen.style.display = 'block';
-
+    el.overlay.style.display = 'flex'; el.titleScreen.style.display = 'none'; el.resultScreen.style.display = 'block';
     document.getElementById('res-tech').textContent = "テクニック：" + Math.round(skill.technique) + "点";
     document.getElementById('res-attack').textContent = "アタック：" + Math.round(skill.attack) + "点";
     document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(skill.jump) + "点";
     document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(skill.ruby) + "点";
-    
     const resTotal = document.getElementById('res-total');
     const totalInt = Math.round(total);
     resTotal.textContent = "TOTAL：" + totalInt + "点";

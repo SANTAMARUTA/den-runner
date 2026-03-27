@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition (Performance Zero)</title>
+    <title>DENRUNNER - Masterpiece Edition (Absolute Stability)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -119,13 +119,18 @@
         </div>
 
         <div id="overlay">
+            <!-- 1. LOADING -->
             <div id="loading-screen">
                 <div>LOADING... <span id="load-percent">0</span>%</div>
             </div>
+
+            <!-- 2. READY -->
             <div id="title-screen">
                 <img id="title-image" src="DENrunnertop.png" alt="DENRUNNER">
                 <button id="start-btn" class="btn">GAME START</button>
             </div>
+
+            <!-- 3. GAMEOVER -->
             <div id="result-screen">
                 <h2 style="color: #ffeb3b; margin-bottom: 15px;">GAME RESULT</h2>
                 <p id="res-tech"></p>
@@ -140,9 +145,9 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v11.0) - Performance Zero
+ * Denrunner: Masterpiece Edition (v11.1) - Absolute Stability
  * 監修: アンバー / 実装: ヘルメス
- * [究極最適化] 配列管理 & DOM参照削減 & 音声プール再利用
+ * [最終修正] エフェクト寿命管理による setTimeout 完全廃止・フリーズ排除
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -165,7 +170,7 @@ let currentState = GameState.LOADING;
 const loadedAssets = {}; 
 const assetStatus = {}; 
 const timeoutMap = {}; 
-const sePool = {}; // 修正③：Audio再利用プール
+const sePool = {}; 
 let audioUnlocked = false;
 let animationId = null; 
 let bgmFadeInterval = null;
@@ -175,7 +180,7 @@ let lastTime = 0;
 let currentPlayerImageKey = null;
 let currentImgTag = 'main';
 
-// 修正①：エフェクト配列管理
+// エンティティ & エフェクト配列管理 (修正①)
 let activeEntities = []; 
 let stompEffects = []; 
 let seCount = 0; 
@@ -185,7 +190,7 @@ let state = {
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
     itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
     isAboveHole: false, playTime: 0, stompCount: 0,
-    playerX: 0, playerYpx: 0 // 修正②：DOM参照を減らすためのキャッシュ
+    playerX: 0, playerYpx: 0 
 };
 
 const el = {
@@ -279,21 +284,14 @@ function unlockAudio() {
 function resizeGame() {
     if (currentState === GameState.PLAYING || currentState === GameState.READY) {
         el.player.style.left = "10%";
-        // 座標キャッシュの即時更新
         state.playerX = el.player.offsetLeft;
         state.playerYpx = el.player.offsetTop;
     }
 }
 
-/** * 修正③：Audio再利用・同時再生制限
- */
 function playSe(src, volume) {
     if (!audioUnlocked || seCount > 5) return;
-
-    if (!sePool[src]) {
-        sePool[src] = new Audio(src);
-    }
-
+    if (!sePool[src]) sePool[src] = new Audio(src);
     try { 
         seCount++;
         const se = sePool[src].cloneNode(); 
@@ -322,7 +320,7 @@ function resetGameState() {
 
     activeEntities.forEach(ent => ent.el.remove());
     activeEntities = [];
-    stompEffects.forEach(fx => fx.remove());
+    stompEffects.forEach(fx => fx.el.remove()); // 構造変更に対応
     stompEffects = [];
 }
 
@@ -363,7 +361,7 @@ function gameLoop(timestamp) {
     const deltaTime = Math.min(100, timestamp - lastTime); 
     lastTime = timestamp;
 
-    // 修正⑤：さらに安定させるためのフレームスキップ強化
+    // フレームスキップ強化 (修正⑤)
     if (deltaTime > 40) {
         animationId = requestAnimationFrame(gameLoop);
         return;
@@ -395,7 +393,6 @@ function update(dt, timestamp) {
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
 
-    // 修正②：DOM参照回数を減らすため、座標をstateに保持
     state.playerX = el.player.offsetLeft;
     state.playerYpx = el.player.offsetTop;
 
@@ -420,6 +417,16 @@ function update(dt, timestamp) {
     }
 
     updateEntities(ds, totalSpeed, timestamp);
+
+    // 修正②：エフェクト寿命管理 (setTimeout完全廃止)
+    for (let i = stompEffects.length - 1; i >= 0; i--) {
+        const fx = stompEffects[i];
+        fx.life -= dt;
+        if (fx.life <= 0) {
+            fx.el.remove();
+            stompEffects.splice(i, 1);
+        }
+    }
 }
 
 function draw() {
@@ -429,8 +436,6 @@ function draw() {
     el.feverBar.style.width = state.feverGauge + '%';
 }
 
-/** * 修正④：最大出現数を30体に制限 (安定性優先)
- */
 function createEntity(type) {
     if (activeEntities.length > 30) return; 
 
@@ -440,13 +445,9 @@ function createEntity(type) {
     obj.style.left = startX + 'px';
 
     const entityData = {
-        el: obj,
-        type: type,
-        x: startX,
-        width: 0, height: 0,
-        phase: Math.random() * Math.PI * 2,
-        yVel: 0, yOffset: 0,
-        jumpTimer: Math.random() * 2000
+        el: obj, type: type, x: startX,
+        width: 0, height: 0, phase: Math.random() * Math.PI * 2,
+        yVel: 0, yOffset: 0, jumpTimer: Math.random() * 2000
     };
 
     if (type === 'item') {
@@ -478,82 +479,51 @@ function createEntity(type) {
 }
 
 function updateEntities(ds, speed, timestamp) {
-    const pX = state.playerX;
-    const pY = state.playerYpx;
+    const pX = state.playerX, pY = state.playerYpx;
     const pW = 80, pH = 80;
-
     state.isAboveHole = false;
 
     for (let i = activeEntities.length - 1; i >= 0; i--) {
         const ent = activeEntities[i];
         ent.x -= (speed * 0.8) * ds;
 
-        let wobbleX = 0;
-        if (ent.type === 'stompEnemy') wobbleX = Math.sin(timestamp / 150 + ent.phase) * 10;
-        
+        let wobbleX = 0; if (ent.type === 'stompEnemy') wobbleX = Math.sin(timestamp / 150 + ent.phase) * 10;
         let autoY = 0;
         if (ent.type === 'obstacle') {
             ent.jumpTimer -= 16.6 * ds;
             if (ent.jumpTimer <= 0 && ent.yOffset === 0) { ent.yVel = -12; ent.jumpTimer = 2000 + Math.random() * 3000; }
-            if (ent.yOffset > 0 || ent.yVel !== 0) {
-                ent.yVel += 0.6 * ds;
-                ent.yOffset -= ent.yVel * ds;
-                if (ent.yOffset <= 0) { ent.yOffset = 0; ent.yVel = 0; }
-            }
+            if (ent.yOffset > 0 || ent.yVel !== 0) { ent.yVel += 0.6 * ds; ent.yOffset -= ent.yVel * ds; if (ent.yOffset <= 0) { ent.yOffset = 0; ent.yVel = 0; } }
             autoY = ent.yOffset;
         }
-        let bobY = 0;
-        if (ent.type === 'flyEnemy') bobY = Math.sin(timestamp / 200) * 15;
+        let bobY = 0; if (ent.type === 'flyEnemy') bobY = Math.sin(timestamp / 200) * 15;
 
         ent.el.style.left = (ent.x + wobbleX) + 'px';
         ent.el.style.transform = `translateY(${-autoY + bobY}px)`;
 
-        // 削除強化：画面外なら即splice
-        if (ent.x < -200) {
-            ent.el.remove();
-            activeEntities.splice(i, 1);
-            continue;
-        }
+        if (ent.x < -200) { ent.el.remove(); activeEntities.splice(i, 1); continue; }
 
-        const eX = ent.x + wobbleX;
-        const eY = ent.el.offsetTop;
+        const eX = ent.x + wobbleX, eY = ent.el.offsetTop;
         const eW = ent.width, eH = ent.height;
 
-        if (ent.type === 'hole') {
-            if (pX + pW/2 > eX && pX + pW/2 < eX + eW) state.isAboveHole = true;
-            continue;
-        }
+        if (ent.type === 'hole') { if (pX + pW/2 > eX && pX + pW/2 < eX + eW) state.isAboveHole = true; continue; }
 
-        let hitMargin = 22;
-        if (ent.type === 'flyEnemy') hitMargin = 35;
+        let hitMargin = 22; if (ent.type === 'flyEnemy') hitMargin = 35;
 
-        if (pX + hitMargin < eX + eW &&
-            pX + pW - hitMargin > eX &&
-            pY + hitMargin < eY + eH &&
-            pY + pH - hitMargin > eY) {
-            
+        if (pX + hitMargin < eX + eW && pX + pW - hitMargin > eX && pY + hitMargin < eY + eH && pY + pH - hitMargin > eY) {
             if (ent.type === 'item') {
                 setTimeout(() => playSe(assets.itemSe, config.itemSeVolume), 30);
-                ent.el.remove();
-                activeEntities.splice(i, 1);
-                state.scoreRaw += 500;
-                if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
+                ent.el.remove(); activeEntities.splice(i, 1);
+                state.scoreRaw += 500; if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
             } else {
                 const stompable = (ent.type === 'stompEnemy' || ent.type === 'flyEnemy' || ent.type === 'obstacle');
                 if (stompable) {
                     const isFalling = state.velocityY > 0;
                     const pBottom = pY + pH - hitMargin;
                     const eTopLimit = (ent.type === 'flyEnemy') ? eY + 35 : eY + 20;
-
                     if (isFalling && pBottom < eTopLimit + 20) {
-                        playSe(assets.stompSe, config.stompSeVolume);
-                        createStompEffect(eX + eW/2, eY);
-                        state.stompCount++;
-                        ent.el.remove();
-                        activeEntities.splice(i, 1);
-                        state.scoreRaw += 500;
-                        state.velocityY = config.stompBouncePower;
-                        state.jumps = 1;
+                        playSe(assets.stompSe, config.stompSeVolume); createStompEffect(eX + eW/2, eY);
+                        state.stompCount++; ent.el.remove(); activeEntities.splice(i, 1);
+                        state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
                         if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
                     } else if (!state.isFever) { triggerMiss(); return; }
                 }
@@ -564,11 +534,10 @@ function updateEntities(ds, speed, timestamp) {
 
 function handleInput() {
     if (currentState !== GameState.PLAYING || state.isMissed || state.jumps >= 2) return;
-    const isAir = state.playerY > 0;
+    const isAir = state.playerY > 0.5;
     if (isAir && state.jumps >= 1) {
         if (spinTimeoutId) clearTimeout(spinTimeoutId);
-        el.player.classList.remove('player-spin-anim');
-        void el.player.offsetWidth;
+        el.player.classList.remove('player-spin-anim'); void el.player.offsetWidth;
         el.player.classList.add('player-spin-anim');
         spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
     }
@@ -587,42 +556,33 @@ function setPlayerImage(key) {
     currentPlayerImageKey = key;
 }
 
-/** * 修正①：stomp-effectも配列で管理 (最重要)
+/** * 修正③：エフェクト寿命管理 (修正①と連動)
  */
 function createStompEffect(x, y) {
     if (stompEffects.length > 10) return;
-
     const colors = ['#fff', '#ff0', '#0ff'];
     for (let i = 0; i < 3; i++) {
         const fx = document.createElement('div');
         fx.className = 'stomp-effect'; fx.textContent = '★';
         fx.style.color = colors[Math.floor(Math.random() * colors.length)];
         fx.style.left = x + 'px'; fx.style.top = y + 'px';
-        
         el.container.appendChild(fx);
-        stompEffects.push(fx);
 
-        // 400ms後に配列とDOMから削除
-        setTimeout(() => {
-            fx.remove();
-            stompEffects = stompEffects.filter(e => e !== fx);
-        }, 400);
+        // 配列で寿命管理 (指示③)
+        stompEffects.push({
+            el: fx,
+            life: 400
+        });
     }
 }
 
 function triggerMiss() {
     if (state.isMissed) return;
-    state.isMissed = true;
-    setPlayerImage('playerMiss');
+    state.isMissed = true; setPlayerImage('playerMiss');
     playSe(assets.missSe, config.missSeVolume);
     if (gameBgm) gameBgm.volume = config.bgmVolume * 0.2;
-    el.player.classList.remove('player-spin-anim');
-    state.velocityY = -12;
-    setTimeout(() => {
-        if (bgmFadeInterval) clearInterval(bgmFadeInterval);
-        currentState = GameState.GAMEOVER;
-        showResult();
-    }, 800);
+    el.player.classList.remove('player-spin-anim'); state.velocityY = -12;
+    setTimeout(() => { if (bgmFadeInterval) clearInterval(bgmFadeInterval); currentState = GameState.GAMEOVER; showResult(); }, 800);
 }
 
 function startFever() {
@@ -645,9 +605,7 @@ function showResult() {
         skill.jump = Math.min(100, 60 + (state.playTime * 1.2)); skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
         const raw = Math.round(skill.technique*0.25 + skill.attack*0.25 + skill.jump*0.25 + skill.ruby*0.25);
         total = Math.round(raw);
-        if (raw >= 80 && raw <= 95) {
-            const b = Math.random(); if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90;
-        }
+        if (raw >= 80 && raw <= 95) { const b = Math.random(); if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90; }
         if (raw > 95) total = (state.playTime > 50) ? 100 : 95 + Math.floor(Math.random()*3);
     }
     el.overlay.style.display = 'flex'; el.titleScreen.style.display = 'none'; el.resultScreen.style.display = 'block';

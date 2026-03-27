@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Masterpiece Edition (Final v12.0)</title>
+    <title>DENRUNNER - Masterpiece Edition (Final Stability)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -40,12 +40,11 @@
         #input-layer { position: absolute; inset: 0; z-index: 1500; }
 
         #player {
-            position: absolute; width: 80px; height: 80px; z-index: 100;
+            position: absolute; left: 10%; bottom: 15%; width: 80px; height: 80px; z-index: 100;
             transform-origin: center center;
             will-change: transform;
             backface-visibility: hidden;
             transform: translateZ(0);
-            left: 0; top: 0;
         }
         #player img {
             position: absolute; width: 100%; height: 100%; object-fit: contain; pointer-events: none;
@@ -58,9 +57,7 @@
         @keyframes spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         .item, .obstacle, .stompEnemy, .flyEnemy, .hole { 
-            position: absolute; top: 0; left: 0;
-            background-size: contain; background-repeat: no-repeat; background-position: center; 
-            will-change: transform;
+            position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; 
         }
 
         .item { width: 45px; height: 45px; z-index: 50; border-radius: 50%; background-color: #ff4081; box-shadow: 0 0 15px #fff; }
@@ -68,7 +65,7 @@
         .enemy-satoru { width: 115px; height: 100px; z-index: 45; }
         .enemy-arakatsu { width: 105px; height: 85px; z-index: 48; }
         .fallback-enemy { border-radius: 8px; }
-        .hole { width: 140px; height: 16%; top: auto; bottom: 0; z-index: 5; background: linear-gradient(to bottom, #1a1a1a, #000); border-left: 4px solid #3e2723; border-right: 4px solid #3e2723; box-shadow: inset 0 10px 20px rgba(0,0,0,0.8); }
+        .hole { width: 140px; height: 16%; bottom: 0; z-index: 5; background: linear-gradient(to bottom, #1a1a1a, #000); border-left: 4px solid #3e2723; border-right: 4px solid #3e2723; box-shadow: inset 0 10px 20px rgba(0,0,0,0.8); }
 
         .stomp-effect { position: absolute; font-size: 32px; pointer-events: none; z-index: 200; animation: stompPop 0.4s ease-out forwards; color: #fff; text-shadow: 0 0 8px #ff0; transform: translate(-50%, -50%); }
         @keyframes stompPop { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(-50%, -100%) scale(2.0); opacity: 0; } }
@@ -143,9 +140,12 @@
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v12.0) - Final Absolute Zero
+ * Denrunner: Masterpiece Edition (v12.2) - Final Absolute Stability
  * 監修: アンバー / 実装: ヘルメス
- * [完全完成] 全座標系をTop基準（左上）に統一。ロジックと描画の完全同期パッチ。
+ * * [最終修正内容]
+ * 1. 動作の正しかった版（bottom基準）を土台に完全復旧。
+ * 2. 判定ロジックを「プレイヤーに近い敵（x < 50）」に限定し、高スコア時のフリーズを排除。
+ * 3. エフェクト寿命管理とAudio流量制限によるメモリ負荷の一定化。
  */
 
 const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
@@ -178,6 +178,7 @@ let lastTime = 0;
 let currentPlayerImageKey = null;
 let currentImgTag = 'main';
 
+// パフォーマンス・フリーズ対策用
 let activeEntities = []; 
 let stompEffects = []; 
 let seCount = 0; 
@@ -186,9 +187,7 @@ let state = {
     running: false, isMissed: false, distance: 0, scoreRaw: 0, 
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
     itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-    isAboveHole: false, playTime: 0, stompCount: 0,
-    playerX: 0, // 中心位置（メモリ管理）
-    playerYpx: 0 // 足元位置（地面基準の絶対px・メモリ管理）
+    isAboveHole: false, playTime: 0, stompCount: 0
 };
 
 const el = {
@@ -213,7 +212,7 @@ window.onload = initGame;
 function initGame() {
     el.container.style.display = 'block';
     preloadAssets();
-    window.addEventListener('resize', resizeGame);
+    window.addEventListener('resize', checkOrientation);
     document.getElementById('start-btn').addEventListener('click', (e) => {
         e.stopPropagation();
         unlockAudio();
@@ -223,7 +222,6 @@ function initGame() {
         startGame(); 
     });
     document.getElementById('input-layer').addEventListener('pointerdown', handleInput);
-    resizeGame();
 }
 
 function preloadAssets() {
@@ -279,12 +277,9 @@ function unlockAudio() {
     audioUnlocked = true;
 }
 
-function resizeGame() {
-    const groundY = window.innerHeight * (1 - config.groundHeight / 100);
-    state.playerX = window.innerWidth * 0.1;
-    state.playerYpx = groundY - state.playerY;
-}
+function checkOrientation() {}
 
+// 修正：音の制限
 function playSe(src, volume) {
     if (!audioUnlocked || seCount > 5) return;
     if (!sePool[src]) sePool[src] = new Audio(src);
@@ -301,12 +296,11 @@ function resetGameState() {
         running: true, isMissed: false, distance: 0, scoreRaw: 0, 
         speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
         itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-        isAboveHole: false, playTime: 0, stompCount: 0,
-        playerX: window.innerWidth * 0.1,
-        playerYpx: 0 
+        isAboveHole: false, playTime: 0, stompCount: 0
     };
-    
     el.player.style.display = 'block';
+    el.player.style.bottom = config.groundHeight + '%';
+    el.player.style.transform = 'none';
     el.player.classList.remove('player-spin-anim');
     el.container.classList.remove('fever-mode');
     el.feverBar.style.width = '0%';
@@ -319,8 +313,6 @@ function resetGameState() {
     activeEntities = [];
     stompEffects.forEach(fx => fx.el.remove());
     stompEffects = [];
-    
-    resizeGame();
 }
 
 function startGame() {
@@ -357,14 +349,8 @@ function gameLoop(timestamp) {
         animationId = null;
         return; 
     }
-    const deltaTime = Math.min(100, timestamp - lastTime); 
+    const deltaTime = Math.min(32, timestamp - lastTime); 
     lastTime = timestamp;
-
-    if (deltaTime > 40) {
-        animationId = requestAnimationFrame(gameLoop);
-        return;
-    }
-
     update(deltaTime, timestamp);
     draw();
     animationId = requestAnimationFrame(gameLoop);
@@ -372,12 +358,9 @@ function gameLoop(timestamp) {
 
 function update(dt, timestamp) {
     const ds = dt / 16.66;
-    const groundY = window.innerHeight * (1 - config.groundHeight / 100);
-
     if (state.isMissed) {
         state.velocityY += config.gravity * ds;
         state.playerY -= state.velocityY * ds;
-        state.playerYpx = groundY - state.playerY;
         return;
     }
 
@@ -388,16 +371,13 @@ function update(dt, timestamp) {
     state.velocityY += config.gravity * ds;
     state.playerY -= state.velocityY * ds;
 
-    // 着地判定 (0.5pxのバッファ)
+    // 着地判定
     if (state.playerY <= 0.5) {
         if (!state.isAboveHole) {
             state.playerY = 0; state.velocityY = 0; state.jumps = 0;
             if (currentPlayerImageKey !== 'player') setPlayerImage('player');
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
-
-    state.playerX = window.innerWidth * 0.1;
-    state.playerYpx = groundY - state.playerY;
 
     const moveDist = totalSpeed * ds;
     state.distance += moveDist;
@@ -419,8 +399,9 @@ function update(dt, timestamp) {
         while (state.holeTimer >= config.holeInterval) { createEntity('hole'); state.holeTimer -= config.holeInterval; }
     }
 
-    updateEntities(ds, totalSpeed, timestamp, dt);
+    updateEntities(ds, totalSpeed, timestamp);
 
+    // エフェクト寿命管理 (修正：フリーズ対策)
     for (let i = stompEffects.length - 1; i >= 0; i--) {
         const fx = stompEffects[i];
         fx.life -= dt;
@@ -429,119 +410,108 @@ function update(dt, timestamp) {
 }
 
 function draw() {
-    const pW = 80, pH = 80;
-    // 描画補正：Top（y-80）と左端（x-40）をtranslateに渡す
-    el.player.style.transform = `translate(${state.playerX - pW/2}px, ${state.playerYpx - pH}px)`;
+    el.player.style.bottom = (config.groundHeight + (state.playerY / window.innerHeight * 100)) + '%';
     el.score.textContent = Math.floor(state.scoreRaw);
     el.feverBar.style.width = state.feverGauge + '%';
 }
 
 function createEntity(type) {
-    if (activeEntities.length > 30) return; 
-
+    if (activeEntities.length > 50) return; 
     const obj = document.createElement('div');
     obj.className = type;
-    const startX = window.innerWidth + 150;
-
-    const entityData = {
-        el: obj, type: type, x: startX, y: 0,
-        width: 0, height: 0, phase: Math.random() * Math.PI * 2,
-        yVel: 0, yOffset: 0, jumpTimer: Math.random() * 2000
-    };
-
-    const groundTop = window.innerHeight * (1 - config.groundHeight / 100);
+    obj.dataset.x = 110;
 
     if (type === 'item') {
-        entityData.y = window.innerHeight * (0.25 + Math.random() * 0.35);
+        obj.style.bottom = (25 + Math.random() * 35) + '%';
         if (loadedAssets.ruby && loadedAssets.ruby instanceof Image) { obj.style.backgroundImage = `url(${loadedAssets.ruby.src})`; obj.style.backgroundColor = 'transparent'; }
-        entityData.width = 45; entityData.height = 45;
     } else if (type === 'obstacle') {
         obj.classList.add('enemy-auto');
-        entityData.y = groundTop - 110; 
         if (loadedAssets.enemyAuto && loadedAssets.enemyAuto instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyAuto.src})`; else obj.classList.add('fallback-enemy');
-        entityData.width = 110; entityData.height = 110;
+        obj.style.bottom = config.groundHeight + '%';
+        obj.dataset.yVel = 0; obj.dataset.yOffset = 0; obj.dataset.jumpTimer = Math.random() * 2000;
     } else if (type === 'stompEnemy') {
         obj.classList.add('enemy-satoru');
-        entityData.y = groundTop - 100;
+        obj.dataset.phase = Math.random() * Math.PI * 2;
         if (loadedAssets.enemySatoru && loadedAssets.enemySatoru instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemySatoru.src})`; else obj.classList.add('fallback-enemy');
-        entityData.width = 115; entityData.height = 100;
+        obj.style.bottom = config.groundHeight + '%';
     } else if (type === 'flyEnemy') {
         obj.classList.add('enemy-arakatsu');
-        entityData.y = window.innerHeight * (0.35 + Math.random() * 0.25);
         if (loadedAssets.enemyArakatsu && loadedAssets.enemyArakatsu instanceof Image) obj.style.backgroundImage = `url(${loadedAssets.enemyArakatsu.src})`; else obj.classList.add('fallback-enemy');
-        entityData.width = 105; entityData.height = 85;
+        obj.style.bottom = (35 + Math.random() * 25) + '%';
     } else if (type === 'hole') {
-        entityData.y = groundTop;
-        entityData.width = 140;
+        obj.style.bottom = '0';
     }
-
     el.container.appendChild(obj);
-    activeEntities.push(entityData);
+    activeEntities.push({ el: obj, type: type });
 }
 
-/** * エンティティ更新：判定ロジックのTop基準統一 (修正①②)
- */
-function updateEntities(ds, speed, timestamp, dt) {
-    // 修正①：プレイヤーもTop（左上）基準に統一
-    const pX = state.playerX;
-    const pY = state.playerYpx - 80; // 足元から全高(80)を引いてTopにする
-    
-    const pW = 80;
-    const pH = 80;
-    
+function updateEntities(ds, speed, timestamp) {
+    const pRect = el.player.getBoundingClientRect(); 
     state.isAboveHole = false;
 
     for (let i = activeEntities.length - 1; i >= 0; i--) {
-        const ent = activeEntities[i];
-        ent.x -= (speed * 0.8) * ds;
+        const entObj = activeEntities[i];
+        const ent = entObj.el;
+        let x = parseFloat(ent.dataset.x);
+        x -= (speed / 12) * ds;
+        ent.dataset.x = x;
 
-        let wobbleX = 0; if (ent.type === 'stompEnemy') wobbleX = Math.sin(timestamp / 150 + ent.phase) * 10;
+        let hitMargin = 14; 
+        if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
+        let wobbleX = 0; 
+        if (ent.classList.contains('enemy-satoru')) { const phase = parseFloat(ent.dataset.phase || 0); wobbleX = Math.sin(timestamp / 150 + phase) * 10; }
         let autoY = 0;
-        if (ent.type === 'obstacle') {
-            ent.jumpTimer -= 16.6 * ds;
-            if (ent.jumpTimer <= 0 && ent.yOffset === 0) { ent.yVel = -12; ent.jumpTimer = 2000 + Math.random() * 3000; }
-            if (ent.yOffset > 0 || ent.yVel !== 0) {
-                ent.yVel += 0.6 * ds; ent.yOffset -= ent.yVel * ds;
-                if (ent.yOffset <= 0) { ent.yOffset = 0; ent.yVel = 0; }
-            }
-            autoY = ent.yOffset;
+        if (ent.classList.contains('enemy-auto')) {
+            let yVel = parseFloat(ent.dataset.yVel), yOff = parseFloat(ent.dataset.yOffset), jTim = parseFloat(ent.dataset.jumpTimer);
+            jTim -= 16.6 * ds;
+            if (jTim <= 0 && yOff === 0) { yVel = -12; jTim = 2000 + Math.random() * 3000; }
+            if (yOff > 0 || yVel !== 0) { yVel += 0.6 * ds; yOff -= yVel * ds; if (yOff <= 0) { yOff = 0; yVel = 0; } }
+            ent.dataset.yVel = yVel; ent.dataset.yOffset = yOff; ent.dataset.jumpTimer = jTim; autoY = yOff;
         }
-        let bobY = 0; if (ent.type === 'flyEnemy') bobY = Math.sin(timestamp / 200) * 15;
+        let bobY = 0; if (ent.classList.contains('enemy-arakatsu')) bobY = Math.sin(timestamp / 200) * 15;
 
-        const displayY = ent.y + (-autoY + bobY);
-        ent.el.style.transform = `translate(${ent.x + wobbleX}px, ${displayY}px)`; 
+        ent.style.left = `calc(${x}% + ${wobbleX}px)`;
+        ent.style.transform = `translateY(${-autoY + bobY}px)`;
 
-        if (ent.x < -200) { ent.el.remove(); activeEntities.splice(i, 1); continue; }
+        // 削除判定
+        if (x < -25) { ent.remove(); activeEntities.splice(i, 1); continue; }
 
-        const eX = ent.x + wobbleX, eY = displayY, eW = ent.width, eH = ent.height;
-
-        // 穴の判定 (足元の中心点xを使用)
-        if (ent.type === 'hole') { if (pX > eX && pX < eX + eW) state.isAboveHole = true; continue; }
-
-        let hitMargin = 22; if (ent.type === 'flyEnemy') hitMargin = 35;
-
-        // 修正②：判定も完全Top基準によるAABB矩形判定 (指示通りのロジック)
-        if (pX - pW/2 + hitMargin < eX + eW &&
-            pX + pW/2 - hitMargin > eX &&
-            pY + hitMargin < eY + eH &&
-            pY + pH - hitMargin > eY) {
+        /**
+         * 修正：当たり判定を「画面内付近（x < 50 && x > -10）」だけに限定
+         * これにより無駄な getBoundingClientRect 呼び出しを激減させ、フリーズを防止。
+         */
+        if (x < 50 && x > -10) {
+            const eRect = ent.getBoundingClientRect();
             
-            if (ent.type === 'item') {
-                playSe(assets.itemSe, config.itemSeVolume);
-                ent.el.remove(); activeEntities.splice(i, 1);
-                state.scoreRaw += 500; if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
-            } else {
-                const stompable = (ent.type === 'stompEnemy' || ent.type === 'flyEnemy' || ent.type === 'obstacle');
-                if (stompable) {
-                    const isFalling = state.velocityY > 0;
-                    const pBottom = pY + pH - hitMargin; 
-                    const eTopLimit = (ent.type === 'flyEnemy') ? eY + 35 : eY + 20;
-                    if (isFalling && pBottom < eTopLimit + 20) {
-                        playSe(assets.stompSe, config.stompSeVolume); createStompEffect(eX + eW/2, eY);
-                        state.stompCount++; ent.el.remove(); activeEntities.splice(i, 1);
-                        state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
-                        if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
-                    } else if (!state.isFever) { triggerMiss(); return; }
+            if (ent.classList.contains('hole')) {
+                const pCenter = pRect.left + pRect.width / 2;
+                if (pCenter > eRect.left && pCenter < eRect.right) state.isAboveHole = true;
+                continue;
+            }
+
+            if (pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left &&
+                pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
+                
+                if (ent.classList.contains('item')) {
+                    playSe(assets.itemSe, config.itemSeVolume);
+                    ent.remove(); activeEntities.splice(i, 1);
+                    state.scoreRaw += 500;
+                    if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
+                } else {
+                    const stompable = ent.classList.contains('stompEnemy') || ent.classList.contains('flyEnemy') || ent.classList.contains('obstacle');
+                    if (stompable) {
+                        const isFalling = state.velocityY > 0;
+                        const pBottom = pRect.bottom - hitMargin;
+                        const eTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
+                        if (isFalling && pBottom < eTopLimit + 20) {
+                            playSe(assets.stompSe, config.stompSeVolume);
+                            createStompEffect(eRect.left + eRect.width/2, eRect.top);
+                            state.stompCount++;
+                            ent.remove(); activeEntities.splice(i, 1);
+                            state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
+                            if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
+                        } else if (!state.isFever) { triggerMiss(); return; }
+                    }
                 }
             }
         }
@@ -550,13 +520,15 @@ function updateEntities(ds, speed, timestamp, dt) {
 
 function handleInput() {
     if (currentState !== GameState.PLAYING || state.isMissed || state.jumps >= 2) return;
-    if (state.playerY > 0.5 && state.jumps >= 1) {
+    const isAir = state.playerY > 0.5;
+    if (isAir && state.jumps >= 1) {
         if (spinTimeoutId) clearTimeout(spinTimeoutId);
         el.player.classList.remove('player-spin-anim'); void el.player.offsetWidth;
         el.player.classList.add('player-spin-anim');
         spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
     }
-    state.velocityY = config.jumpPower; state.jumps++;
+    state.velocityY = config.jumpPower; 
+    state.jumps++;
     setPlayerImage('playerJump');
 }
 
@@ -609,11 +581,16 @@ function showResult() {
     let total = 45 + Math.floor(Math.random()*5);
     let skill = { technique: 40, attack: 40, jump: 40, ruby: 40 };
     if (isVal) {
-        skill.technique = Math.min(100, 60 + state.stompCount * 2); skill.attack = Math.min(100, 50 + state.stompCount * 3);
-        skill.jump = Math.min(100, 60 + (state.playTime * 1.2)); skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
+        skill.technique = Math.min(100, 60 + state.stompCount * 2);
+        skill.attack = Math.min(100, 50 + state.stompCount * 3);
+        skill.jump = Math.min(100, 60 + (state.playTime * 1.2));
+        skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
         const raw = Math.round(skill.technique*0.25 + skill.attack*0.25 + skill.jump*0.25 + skill.ruby*0.25);
         total = Math.round(raw);
-        if (raw >= 80 && raw <= 95) { const b = Math.random(); if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90; }
+        if (raw >= 80 && raw <= 95) {
+            const b = Math.random();
+            if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90;
+        }
         if (raw > 95) total = (state.playTime > 50) ? 100 : 95 + Math.floor(Math.random()*3);
     }
     el.overlay.style.display = 'flex'; el.titleScreen.style.display = 'none'; el.resultScreen.style.display = 'block';

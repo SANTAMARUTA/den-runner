@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DENRUNNER - Final Masterpiece</title>
+    <title>DENRUNNER - Final Masterpiece (Stable+)</title>
     <style>
         :root {
             --bg-sky: linear-gradient(to bottom, #1e90ff, #87ceeb);
@@ -22,7 +22,12 @@
             display: none; flex-direction: column; align-items: center; justify-content: center;
             z-index: 10000; text-align: center; padding: 20px;
         }
-        #game-container { position: relative; width: 100vw; height: 100vh; background: var(--bg-sky); overflow: hidden; }
+        #game-container { position: relative; width: 100vw; height: 100vh; background: var(--bg-sky); overflow: hidden; display: none; }
+
+        @media (orientation: portrait) { 
+            #rotate-notice { display: flex; } 
+            #game-container { display: none !important; } 
+        }
 
         #game-container.fever-mode { background: var(--fever-bg); animation: fever-flash 0.5s infinite alternate; }
         @keyframes fever-flash { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(90deg); } }
@@ -39,7 +44,6 @@
             transform-origin: center center;
             will-change: transform;
             backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
             transform: translateZ(0);
         }
         #player img {
@@ -50,10 +54,7 @@
         #player-img-sub { opacity: 0; z-index: 1; }
 
         .player-spin-anim { animation: spin-once 0.35s linear forwards; }
-        @keyframes spin-once {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         .item, .obstacle, .stompEnemy, .flyEnemy, .hole { 
             position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; 
@@ -63,76 +64,35 @@
         .enemy-auto { width: 110px; height: 110px; z-index: 40; }
         .enemy-satoru { width: 115px; height: 100px; z-index: 45; }
         .enemy-arakatsu { width: 105px; height: 85px; z-index: 48; }
+        .fallback-enemy { border-radius: 8px; }
+        .hole { width: 140px; height: 16%; bottom: 0; z-index: 5; background: linear-gradient(to bottom, #1a1a1a, #000); border-left: 4px solid #3e2723; border-right: 4px solid #3e2723; box-shadow: inset 0 10px 20px rgba(0,0,0,0.8); }
 
-        .enemy-auto.fallback-enemy { background-color: #222; border-radius: 5px; }
-        .enemy-satoru.fallback-enemy { background-color: #2e7d32; border-radius: 8px; }
-        .enemy-arakatsu.fallback-enemy { background-color: #3949ab; border-radius: 50% 50% 10% 10%; }
-
-        .hole { 
-            width: 140px; height: 16%; bottom: 0; z-index: 5; 
-            background: linear-gradient(to bottom, #1a1a1a, #000);
-            border-left: 4px solid #3e2723; border-right: 4px solid #3e2723;
-            box-shadow: inset 0 10px 20px rgba(0,0,0,0.8);
-        }
-
-        .stomp-effect {
-            position: absolute; font-size: 32px; pointer-events: none; z-index: 200;
-            animation: stompPop 0.4s ease-out forwards; color: #fff;
-            text-shadow: 0 0 8px #ff0, 0 0 12px #ffa500;
-            transform: translate(-50%, -50%);
-        }
-        @keyframes stompPop {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
-            100% { transform: translate(-50%, -100%) scale(2.0); opacity: 0; }
-        }
+        .stomp-effect { position: absolute; font-size: 32px; pointer-events: none; z-index: 200; animation: stompPop 0.4s ease-out forwards; color: #fff; text-shadow: 0 0 8px #ff0; transform: translate(-50%, -50%); }
+        @keyframes stompPop { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(-50%, -100%) scale(2.0); opacity: 0; } }
 
         #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 2000; color: #fff; text-shadow: 2px 2px 4px #000; pointer-events: none; }
-        .stat-box { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
-        #fever-bar-container { width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; }
+        #fever-bar-container { width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; margin-top: 5px; }
         #fever-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff0, #f0f); transition: width 0.1s linear; }
 
         #overlay {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.75);
+            position: absolute; inset: 0; background: rgba(0,0,0,0.85);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 3000; color: #fff; text-align: center;
-            padding: 20px;
-            overflow-y: auto;
+            z-index: 3000; color: #fff; text-align: center; padding: 20px; overflow-y: auto;
         }
 
-        #title-image {
-            max-width: 90vw;
-            max-height: 65vh;
-            width: auto;
-            height: auto;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            object-fit: contain;
-            box-shadow: 0 0 20px rgba(255,152,0,0.5);
-        }
+        #loading-screen { display: flex; font-size: 24px; font-weight: bold; }
+        #title-screen { display: none; }
+        #result-screen { display: none; width: 100%; max-width: 500px; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 20px; border: 2px solid rgba(255,255,255,0.2); }
 
-        #start-btn {
+        #title-image { max-width: 90vw; max-height: 65vh; width: auto; height: auto; border-radius: 12px; margin-bottom: 20px; object-fit: contain; }
+
+        .btn {
             font-size: 24px; padding: 12px 50px; border-radius: 50px;
             background: linear-gradient(45deg, #ff9800, #ff5722); color: white;
-            border: none; cursor: pointer; font-weight: bold;
-            box-shadow: 0 6px 0 #bf360c; transition: transform 0.1s, box-shadow 0.1s;
-            margin-top: 15px;
-            position: relative;
-            z-index: 10;
+            border: none; cursor: pointer; font-weight: bold; box-shadow: 0 6px 0 #bf360c;
+            position: relative; z-index: 10;
         }
-        #start-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #bf360c; }
-
-        #result {
-            display: none; width: 100%; max-width: 500px; padding: 30px;
-            background: rgba(255,255,255,0.1); border-radius: 20px; border: 2px solid rgba(255,255,255,0.2);
-            color: white; text-align: center;
-        }
-        #result h2 { font-size: 28px; margin-bottom: 20px; color: #ffeb3b; }
-        #result p { font-size: 22px; margin-bottom: 10px; font-weight: bold; }
-        #res-total { font-size: 42px; color: #ffeb3b; margin: 20px 0; text-shadow: 0 0 15px #fbc02d; transition: color 0.3s, transform 0.3s; }
-        #retry-btn {
-            margin-top: 20px; font-size: 20px; padding: 10px 40px; border-radius: 10px;
-            background: #fff; color: #333; border: none; cursor: pointer; font-weight: bold;
-        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #bf360c; }
     </style>
 </head>
 <body>
@@ -154,39 +114,43 @@
         </div>
 
         <div id="ui-layer">
-            <div class="stat-box">SCORE: <span id="score-val">0</span></div>
+            <div style="font-size: 22px; font-weight: bold;">SCORE: <span id="score-val">0</span></div>
             <div id="fever-bar-container"><div id="fever-bar"></div></div>
         </div>
 
         <div id="overlay">
-            <img id="title-image" src="DENrunnertop.png" alt="DENRUNNER">
-            <button id="start-btn">GAME START</button>
-
-            <div id="result">
-                <h2>GAME RESULT</h2>
+            <div id="loading-screen">
+                <div>LOADING... <span id="load-percent">0</span>%</div>
+            </div>
+            <div id="title-screen">
+                <img id="title-image" src="DENrunnertop.png" alt="DENRUNNER">
+                <button id="start-btn" class="btn">GAME START</button>
+            </div>
+            <div id="result-screen">
+                <h2 style="color: #ffeb3b; margin-bottom: 15px;">GAME RESULT</h2>
                 <p id="res-tech"></p>
                 <p id="res-attack"></p>
                 <p id="res-jump"></p>
                 <p id="res-ruby"></p>
-                <h1 id="res-total"></h1>
-                <button id="retry-btn">もう一度</button>
+                <h1 id="res-total" style="font-size: 42px; color: #ffeb3b; margin: 20px 0;"></h1>
+                <button id="retry-btn" class="btn" style="background: #fff; color: #333; box-shadow: 0 4px 0 #999;">もう一度</button>
             </div>
         </div>
     </div>
 
 <script>
 /**
- * Denrunner: Masterpiece Edition (v7.2)
+ * Denrunner: Masterpiece Edition (v8.2) - Stable+
  * 監修: アンバー / 実装: ヘルメス
- * 完成仕様：評価スコア小数バグの完全修正版
  */
+
+const GameState = { LOADING: "loading", READY: "ready", PLAYING: "playing", GAMEOVER: "gameover" };
 
 const config = {
     gravity: 0.8, jumpPower: -16, stompBouncePower: -12,
     baseSpeed: 7, maxSpeed: 18, feverBonus: 8, feverDuration: 5000,
     itemInterval: 1200, obsInterval: 2800, stompInterval: 3800, flyInterval: 4800, holeInterval: 6000,
-    groundHeight: 15, scoreRate: 0.1, DEBUG_FORCE_HOLE: false,
-    bgmVolume: 0.5, stompSeVolume: 0.7, itemSeVolume: 0.7, missSeVolume: 0.8, startSeVolume: 0.7
+    groundHeight: 15, scoreRate: 0.1, bgmVolume: 0.5, stompSeVolume: 0.7, itemSeVolume: 0.7, missSeVolume: 0.8, startSeVolume: 0.7
 };
 
 const assets = {
@@ -196,245 +160,194 @@ const assets = {
     title: 'DENrunnertop.png'
 };
 
-const assetStatus = { player: false, playerJump: false, playerMiss: false, ruby: false, enemyAuto: false, enemySatoru: false, enemyArakatsu: false };
-
-let feverTimeoutId = null, spinTimeoutId = null, missTimeoutId = null, isLandscape = true, gameBgm = null, currentPlayerImageKey = null; 
+let currentState = GameState.LOADING;
+const loadedAssets = {}; 
+let audioUnlocked = false;
+let animationId = null; 
+let bgmFadeInterval = null; // 修正②: BGMフェード管理
+let lastTime = 0;
+let currentPlayerImageKey = null;
 let currentImgTag = 'main';
 
-let state = { 
+let state = {
     running: false, isMissed: false, distance: 0, scoreRaw: 0, 
     speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
-    lastTime: 0, itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
-    isAboveHole: false, firstHoleSpawned: false,
-    playTime: 0, stompCount: 0 
+    itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
+    isAboveHole: false, playTime: 0, stompCount: 0
 };
 
 const el = {
-    container: document.getElementById('game-container'), input: document.getElementById('input-layer'),
-    player: document.getElementById('player'), playerImgMain: document.getElementById('player-img-main'), playerImgSub: document.getElementById('player-img-sub'),
-    ground: document.getElementById('ground'), score: document.getElementById('score-val'),
-    feverBar: document.getElementById('fever-bar'), overlay: document.getElementById('overlay'),
-    startBtn: document.getElementById('start-btn'), titleImg: document.getElementById('title-image'),
-    resultDiv: document.getElementById('result'), retryBtn: document.getElementById('retry-btn'),
-    layerMid: document.getElementById('layer-mid'), layerBack: document.getElementById('layer-back'), notice: document.getElementById('rotate-notice')
+    container: document.getElementById('game-container'),
+    overlay: document.getElementById('overlay'),
+    loadingScreen: document.getElementById('loading-screen'),
+    titleScreen: document.getElementById('title-screen'),
+    resultScreen: document.getElementById('result-screen'),
+    player: document.getElementById('player'),
+    playerImgMain: document.getElementById('player-img-main'),
+    playerImgSub: document.getElementById('player-img-sub'),
+    score: document.getElementById('score-val'),
+    feverBar: document.getElementById('fever-bar'),
+    loadPercent: document.getElementById('load-percent'),
+    ground: document.getElementById('ground'),
+    layerMid: document.getElementById('layer-mid'),
+    layerBack: document.getElementById('layer-back')
 };
 
-function checkOrientation() {
-    isLandscape = window.innerWidth > window.innerHeight;
-    if (isLandscape) { el.notice.style.display = 'none'; el.container.style.display = 'block'; } else { el.notice.style.display = 'flex'; el.container.style.display = 'none'; }
-}
+window.onload = initGame;
 
-function playSe(src, volume) { try { const se = new Audio(src); se.volume = volume; se.play().catch(()=>{}); } catch(e) {} }
-function playStompSe() { playSe(assets.stompSe, config.stompSeVolume); }
-function playItemSe()  { playSe(assets.itemSe, config.itemSeVolume); }
-function playMissSe()  { playSe(assets.missSe, config.missSeVolume); }
-function playStartSe() { playSe(assets.startSe, config.startSeVolume); }
-
-function createStompEffect(x, y) {
-    const count = 2 + Math.floor(Math.random() * 2);
-    const colors = ['#fff', '#ff0', '#0ff'];
-    for (let i = 0; i < count; i++) {
-        const fx = document.createElement('div');
-        fx.className = 'stomp-effect'; fx.textContent = '★';
-        fx.style.color = colors[Math.floor(Math.random() * colors.length)];
-        fx.style.left = (x + (Math.random() - 0.5) * 40) + 'px'; fx.style.top = (y + (Math.random() - 0.5) * 30) + 'px';
-        el.container.appendChild(fx); setTimeout(() => fx.remove(), 400);
-    }
-}
-
-/**
- * --- アンバー監修：評価システムロジック (小数バグ修正版) ---
- */
-
-function isValidPlay() {
-    if (state.playTime < 5) return false;
-    if (state.scoreRaw < 1000) return false;
-    if (state.stompCount === 0) return false;
-    return true;
-}
-
-function calculateSkillScores() {
-    const technique = Math.min(100, 60 + state.stompCount * 2);
-    const attack = Math.min(100, 50 + state.stompCount * 3);
-    const jump = Math.min(100, 60 + (state.playTime * 1.2));
-    const ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
-    return { technique, attack, jump, ruby };
-}
-
-function calculateRawTotal(skill) {
-    return Math.round(
-        skill.technique * 0.25 +
-        skill.attack * 0.25 +
-        skill.jump * 0.25 + 
-        skill.ruby * 0.25
-    );
-}
-
-function adjustScore(raw) {
-    // 89ゾーン
-    if (raw >= 80 && raw <= 95) {
-        const bias = Math.random();
-        if (bias < 0.5) return 89;
-        if (bias < 0.7) return 88;
-        if (bias < 0.9) return 90;
-        return raw;
-    }
-    // 上級者
-    if (raw > 95) {
-        if (state.playTime > 50) return 100;
-        return 95 + Math.floor(Math.random() * 3);
-    }
-    // 初心者 (完全整数化 Amber指示)
-    if (raw < 80) {
-        return Math.max(40, raw + Math.floor(Math.random() * 5));
-    }
-    return raw;
-}
-
-function calculateResult() {
-    if (!isValidPlay()) {
-        return {
-            total: 45 + Math.floor(Math.random() * 5),
-            skill: { technique: 40, attack: 40, jump: 40, ruby: 40 }
-        };
-    }
-
-    const skill = calculateSkillScores();
-    const raw = calculateRawTotal(skill);
-    // 最終スコアを念のため丸める (Amber指示 ②)
-    const total = Math.round(adjustScore(raw)); 
-    return { total, skill };
-}
-
-function generateDetailScores(total) {
-    // オフセットも整数に (安全対策)
-    const offset = () => Math.floor(Math.random() * 7 - 3);
-    return { 
-        tech: total + offset(), 
-        attack: total + offset(), 
-        jump: total + offset(), 
-        ruby: total + offset() 
-    };
-}
-
-function showResult() {
-    const resultData = calculateResult();
-    const total = resultData.total;
-    const detail = generateDetailScores(total);
-    const resTotalEl = document.getElementById('res-total');
-
-    el.startBtn.style.display = 'none'; el.titleImg.style.display = 'none';
-    el.overlay.style.display = 'flex'; el.resultDiv.style.display = 'block';
-
-    // 各項目も丸めて表示 (Amber指示 ③)
-    document.getElementById('res-tech').textContent = "テクニック：" + Math.round(detail.tech) + "点";
-    document.getElementById('res-attack').textContent = "アタック：" + Math.round(detail.attack) + "点";
-    document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(detail.jump) + "点";
-    document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(detail.ruby) + "点";
-    
-    resTotalEl.textContent = "TOTAL：" + Math.round(total) + "点";
-    resTotalEl.style.color = "#ffeb3b"; 
-
-    if (total >= 95) {
-        resTotalEl.textContent += " ★EXCELLENT★";
-    }
-    if (total === 100) {
-        resTotalEl.textContent = "TOTAL：100点 ★PERFECT★";
-        resTotalEl.style.color = "#ffd700"; 
-    }
-}
-
-function init() {
-    window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', checkOrientation);
-    checkOrientation();
-    gameBgm = new Audio(assets.bgm); gameBgm.loop = true;
-    el.startBtn.addEventListener('click', (e) => { e.stopPropagation(); startGame(); });
-    el.retryBtn.onclick = () => { location.reload(); };
-    el.input.addEventListener('pointerdown', handleInput);
+function initGame() {
+    el.container.style.display = 'block';
     preloadAssets();
+    window.addEventListener('resize', resizeGame);
+    document.getElementById('start-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        unlockAudio();
+        startGame();
+    });
+    document.getElementById('retry-btn').addEventListener('click', () => { location.reload(); });
+    document.getElementById('input-layer').addEventListener('pointerdown', handleInput);
+    resizeGame();
 }
 
 function preloadAssets() {
-    Object.keys(assetStatus).forEach(key => {
-        const img = new Image(); img.src = assets[key];
-        img.onload = () => assetStatus[key] = true;
-        img.onerror = () => assetStatus[key] = false;
+    const keys = Object.keys(assets);
+    let loadedCount = 0;
+    keys.forEach(key => {
+        const path = assets[key];
+        const isAudio = path.endsWith('.mp3') || path.endsWith('.wav');
+        if (isAudio) {
+            const audio = new Audio(); audio.src = path;
+            audio.oncanplaythrough = () => { if (loadedAssets[key]) return; loadedAssets[key] = audio; loadedCount++; updateProgress(loadedCount, keys.length); };
+            audio.onerror = () => { loadedCount++; updateProgress(loadedCount, keys.length); };
+        } else {
+            const img = new Image(); img.src = path;
+            img.onload = () => { loadedAssets[key] = img; loadedCount++; updateProgress(loadedCount, keys.length); };
+            img.onerror = () => { loadedCount++; updateProgress(loadedCount, keys.length); };
+        }
     });
 }
 
+function updateProgress(count, total) {
+    const percent = Math.floor((count / total) * 100);
+    el.loadPercent.textContent = percent;
+    if (count >= total) {
+        setTimeout(() => {
+            currentState = GameState.READY;
+            el.loadingScreen.style.display = 'none';
+            el.titleScreen.style.display = 'flex';
+        }, 500);
+    }
+}
+
+function unlockAudio() {
+    if (audioUnlocked) return;
+    Object.keys(loadedAssets).forEach(key => {
+        const asset = loadedAssets[key];
+        if (asset instanceof Audio) {
+            asset.play().then(() => { asset.pause(); asset.currentTime = 0; }).catch(() => {});
+        }
+    });
+    audioUnlocked = true;
+}
+
+// 修正③: リサイズ対応（ズレ防止）
+function resizeGame() {
+    if (currentState === GameState.PLAYING || currentState === GameState.READY) {
+        el.player.style.left = "10%";
+    }
+}
+
+function playSe(key, volume) {
+    if (!audioUnlocked || !loadedAssets[key]) return;
+    try {
+        const base = loadedAssets[key];
+        const clone = base.cloneNode();
+        clone.volume = volume;
+        clone.play().catch(()=>{});
+    } catch(e) {}
+}
+
+function resetGameState() {
+    state = {
+        running: true, isMissed: false, distance: 0, scoreRaw: 0, 
+        speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, 
+        itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, 
+        isAboveHole: false, playTime: 0, stompCount: 0
+    };
+    el.player.style.display = 'block';
+    el.player.style.bottom = config.groundHeight + '%';
+    el.player.classList.remove('player-spin-anim');
+    el.container.classList.remove('fever-mode');
+    el.feverBar.style.width = '0%';
+    el.score.textContent = '0';
+    currentPlayerImageKey = null; currentImgTag = 'main';
+    el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0;
+    setPlayerImage('player');
+    document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole, .stomp-effect').forEach(n => n.remove());
+}
+
 function startGame() {
-    if (state.running) return;
-    playStartSe();
-    if (gameBgm) {
-        gameBgm.currentTime = 0; gameBgm.volume = 0; gameBgm.play().catch(()=>{});
+    if (currentState === GameState.PLAYING) return;
+    if (animationId) cancelAnimationFrame(animationId);
+    if (bgmFadeInterval) clearInterval(bgmFadeInterval); // 修正②
+
+    resetGameState();
+    currentState = GameState.PLAYING;
+    el.overlay.style.display = 'none';
+    
+    playSe('startSe', config.startSeVolume);
+    const bgm = loadedAssets['bgm'];
+    if (bgm) {
+        bgm.currentTime = 0; bgm.volume = 0;
+        bgm.play().catch(() => {});
         let v = 0;
-        const fade = setInterval(() => {
-            v += 0.02; gameBgm.volume = Math.min(v, config.bgmVolume);
-            if (v >= config.bgmVolume) clearInterval(fade);
+        bgmFadeInterval = setInterval(() => { // 修正②
+            v += 0.02;
+            bgm.volume = Math.min(v, config.bgmVolume);
+            if (v >= config.bgmVolume) clearInterval(bgmFadeInterval);
         }, 50);
     }
-    if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId); if (missTimeoutId) clearTimeout(missTimeoutId);
-    feverTimeoutId = spinTimeoutId = missTimeoutId = null;
-    state = { running: true, isMissed: false, distance: 0, scoreRaw: 0, speed: config.baseSpeed, isFever: false, playerY: 0, velocityY: 0, jumps: 0, feverGauge: 0, lastTime: performance.now(), itemTimer: 0, obsTimer: 0, stompTimer: 0, flyTimer: 0, holeTimer: 0, isAboveHole: false, firstHoleSpawned: false, playTime: 0, stompCount: 0 };
-    el.player.classList.remove('player-spin-anim'); currentPlayerImageKey = null; currentImgTag = 'main';
-    el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0;
-    setPlayerImage('player'); 
-    el.overlay.style.display = 'none';
-    el.container.classList.remove('fever-mode');
-    document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole, .stomp-effect').forEach(n => n.remove());
-    requestAnimationFrame(gameLoop);
+    lastTime = performance.now();
+    animationId = requestAnimationFrame(gameLoop);
 }
 
-function handleInput() {
-    if (!state.running || state.isMissed || !isLandscape || state.jumps >= 2) return;
-    if (state.jumps === 1) {
-        if (spinTimeoutId) clearTimeout(spinTimeoutId);
-        el.player.classList.remove('player-spin-anim'); void el.player.offsetWidth; 
-        el.player.classList.add('player-spin-anim'); spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
-    }
-    state.velocityY = config.jumpPower; state.jumps++; setPlayerImage('playerJump');
-}
-
-function setPlayerImage(key) {
-    if (currentPlayerImageKey === key) return;
-    let nextSrc = null;
-    if (assetStatus[key]) nextSrc = assets[key]; else if (key !== 'player' && assetStatus.player) { nextSrc = assets.player; key = 'player'; } else return;
-    if (currentImgTag === 'main') {
-        el.playerImgSub.src = nextSrc; el.playerImgSub.style.opacity = 1; el.playerImgMain.style.opacity = 0; currentImgTag = 'sub';
-    } else {
-        el.playerImgMain.src = nextSrc; el.playerImgMain.style.opacity = 1; el.playerImgSub.style.opacity = 0; currentImgTag = 'main';
-    }
-    currentPlayerImageKey = key;
-}
-
+// 修正①: gameLoopの完全停止
 function gameLoop(timestamp) {
-    if (!state.running) return;
-    if (!isLandscape) { state.lastTime = timestamp; requestAnimationFrame(gameLoop); return; }
-    const deltaTime = Math.min(32, timestamp - state.lastTime); 
-    state.lastTime = timestamp;
-    const deltaScale = deltaTime / 16.66;
-    update(deltaTime, deltaScale, timestamp);
+    if (currentState !== GameState.PLAYING) {
+        animationId = null;
+        return; 
+    }
+    const deltaTime = Math.min(32, timestamp - lastTime); 
+    lastTime = timestamp;
+    update(deltaTime, timestamp);
     draw();
-    requestAnimationFrame(gameLoop);
+    animationId = requestAnimationFrame(gameLoop);
 }
 
-function update(dt, ds, timestamp) {
-    if (state.isMissed) { state.velocityY += config.gravity * ds; state.playerY -= state.velocityY * ds; return; }
+function update(dt, timestamp) {
+    const ds = dt / 16.66;
+    if (state.isMissed) {
+        state.velocityY += config.gravity * ds;
+        state.playerY -= state.velocityY * ds;
+        return;
+    }
     state.playTime += dt / 1000;
     if (!state.isFever) state.speed = Math.min(config.maxSpeed, config.baseSpeed + (state.distance / 5000));
-    const currentTotalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
-    state.velocityY += config.gravity * ds; state.playerY -= state.velocityY * ds;
+    const totalSpeed = state.speed + (state.isFever ? config.feverBonus : 0);
+    state.velocityY += config.gravity * ds;
+    state.playerY -= state.velocityY * ds;
     if (state.playerY <= 0) {
         if (!state.isAboveHole) {
             state.playerY = 0; state.velocityY = 0; state.jumps = 0;
-            if (!state.isMissed && currentPlayerImageKey !== 'player') setPlayerImage('player');
+            if (currentPlayerImageKey !== 'player') setPlayerImage('player');
         } else if (state.playerY < -200) { triggerMiss(); return; }
     }
-    const moveDist = currentTotalSpeed * ds;
+    const moveDist = totalSpeed * ds;
     state.distance += moveDist; state.scoreRaw += moveDist * config.scoreRate;
     const bgPos = (state.distance % window.innerWidth);
-    el.layerMid.style.transform = `translateX(${-bgPos * 0.4}px)`; el.layerBack.style.transform = `translateX(${-bgPos * 0.15}px)`; el.ground.style.transform = `translateX(${-bgPos}px)`;
+    el.layerMid.style.transform = `translateX(${-bgPos * 0.4}px)`;
+    el.layerBack.style.transform = `translateX(${-bgPos * 0.15}px)`;
+    el.ground.style.transform = `translateX(${-bgPos}px)`;
     state.itemTimer += dt;
     while (state.itemTimer >= config.itemInterval) { createEntity('item'); state.itemTimer -= config.itemInterval; }
     if (!state.isFever) {
@@ -444,24 +357,35 @@ function update(dt, ds, timestamp) {
         while (state.flyTimer >= config.flyInterval) { createEntity('flyEnemy'); state.flyTimer -= config.flyInterval; }
         while (state.holeTimer >= config.holeInterval) { createEntity('hole'); state.holeTimer -= config.holeInterval; }
     }
-    updateEntities(ds, currentTotalSpeed, timestamp);
+    updateEntities(ds, totalSpeed, timestamp);
+}
+
+function draw() {
+    const visualY = (config.groundHeight + (state.playerY / window.innerHeight * 100));
+    el.player.style.bottom = visualY + '%';
+    el.score.textContent = Math.floor(state.scoreRaw);
+    el.feverBar.style.width = state.feverGauge + '%';
 }
 
 function createEntity(type) {
     const obj = document.createElement('div');
-    obj.className = type; obj.dataset.x = 110;
+    obj.className = type;
+    obj.dataset.x = window.innerWidth + 150; 
     if (type === 'item') {
         obj.style.bottom = (25 + Math.random() * 35) + '%';
-        if (assetStatus.ruby) { obj.style.backgroundImage = `url(${assets.ruby})`; obj.style.boxShadow = 'none'; obj.style.backgroundColor = 'transparent'; }
+        if (loadedAssets.ruby) { obj.style.backgroundImage = `url(${loadedAssets.ruby.src})`; obj.style.backgroundColor = 'transparent'; }
     } else if (type === 'obstacle') {
-        obj.classList.add('enemy-auto'); if (assetStatus.enemyAuto) obj.style.backgroundImage = `url(${assets.enemyAuto})`; else obj.classList.add('fallback-enemy');
-        obj.style.bottom = config.groundHeight + '%'; obj.dataset.yOffset = 0; obj.dataset.yVel = 0; obj.dataset.jumpTimer = Math.random() * 2000;
+        obj.classList.add('enemy-auto');
+        if (loadedAssets.enemyAuto) obj.style.backgroundImage = `url(${loadedAssets.enemyAuto.src})`; else obj.classList.add('fallback-enemy');
+        obj.style.bottom = config.groundHeight + '%';
+        obj.dataset.yVel = 0; obj.dataset.yOffset = 0; obj.dataset.jumpTimer = Math.random() * 2000;
     } else if (type === 'stompEnemy') {
         obj.classList.add('enemy-satoru'); obj.dataset.phase = Math.random() * Math.PI * 2;
-        if (assetStatus.enemySatoru) obj.style.backgroundImage = `url(${assets.enemySatoru})`; else obj.classList.add('fallback-enemy');
+        if (loadedAssets.enemySatoru) obj.style.backgroundImage = `url(${loadedAssets.enemySatoru.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = config.groundHeight + '%';
     } else if (type === 'flyEnemy') {
-        obj.classList.add('enemy-arakatsu'); if (assetStatus.enemyArakatsu) obj.style.backgroundImage = `url(${assets.enemyArakatsu})`; else obj.classList.add('fallback-enemy');
+        obj.classList.add('enemy-arakatsu');
+        if (loadedAssets.enemyArakatsu) obj.style.backgroundImage = `url(${loadedAssets.enemyArakatsu.src})`; else obj.classList.add('fallback-enemy');
         obj.style.bottom = (35 + Math.random() * 25) + '%';
     } else if (type === 'hole') { obj.style.bottom = '0'; }
     el.container.appendChild(obj);
@@ -472,79 +396,141 @@ function updateEntities(ds, speed, timestamp) {
     const entities = document.querySelectorAll('.item, .obstacle, .stompEnemy, .flyEnemy, .hole');
     state.isAboveHole = false;
     for (const ent of entities) {
-        let x = parseFloat(ent.dataset.x); x -= (speed / 12) * ds; ent.dataset.x = x;
-        let hitMargin = 14; if (ent.classList.contains('enemy-auto')) hitMargin = 28; if (ent.classList.contains('enemy-satoru')) hitMargin = 28; if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
+        let x = parseFloat(ent.dataset.x);
+        x -= (speed * 0.8) * ds;
+        ent.dataset.x = x;
+        let hitMargin = 22; if (ent.classList.contains('enemy-arakatsu')) hitMargin = 35;
         let wobbleX = 0; if (ent.classList.contains('enemy-satoru')) { const phase = parseFloat(ent.dataset.phase || 0); wobbleX = Math.sin(timestamp / 150 + phase) * 10; }
         let autoY = 0;
-        if (ent.classList.contains('enemy-auto') && !state.isMissed) {
-            let yVel = parseFloat(ent.dataset.yVel || 0), yOffset = parseFloat(ent.dataset.yOffset || 0), jTimer = parseFloat(ent.dataset.jumpTimer || 0);
-            jTimer -= 16.6 * ds; if (jTimer <= 0 && yOffset === 0) { yVel = -12; jTimer = 2000 + Math.random() * 3000; }
-            if (yOffset > 0 || yVel !== 0) { yVel += 0.6 * ds; yOffset -= yVel * ds; if (yOffset <= 0) { yOffset = 0; yVel = 0; } }
-            ent.dataset.yVel = yVel; ent.dataset.yOffset = yOffset; ent.dataset.jumpTimer = jTimer; autoY = yOffset;
+        if (ent.classList.contains('enemy-auto')) {
+            let yVel = parseFloat(ent.dataset.yVel), yOff = parseFloat(ent.dataset.yOffset), jTim = parseFloat(ent.dataset.jumpTimer);
+            jTim -= 16.6 * ds;
+            if (jTim <= 0 && yOff === 0) { yVel = -12; jTim = 2000 + Math.random() * 3000; }
+            if (yOff > 0 || yVel !== 0) { yVel += 0.6 * ds; yOff -= yVel * ds; if (yOff <= 0) { yOff = 0; yVel = 0; } }
+            ent.dataset.yVel = yVel; ent.dataset.yOffset = yOff; ent.dataset.jumpTimer = jTim; autoY = yOff;
         }
         let bobY = 0; if (ent.classList.contains('enemy-arakatsu')) bobY = Math.sin(timestamp / 200) * 15;
-        ent.style.left = `calc(${x}% + ${wobbleX}px)`; ent.style.transform = `translateY(${-autoY + bobY}px)`;
+        ent.style.left = (x + wobbleX) + 'px';
+        ent.style.transform = `translateY(${-autoY + bobY}px)`;
         const eRect = ent.getBoundingClientRect();
-        if (ent.classList.contains('hole')) { const playerCenterX = pRect.left + pRect.width / 2; if (playerCenterX > eRect.left && playerCenterX < eRect.right) state.isAboveHole = true; }
-        if (!ent.classList.contains('hole') && pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left && pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
+        if (ent.classList.contains('hole')) {
+            const pCenter = pRect.left + pRect.width / 2;
+            if (pCenter > eRect.left && pCenter < eRect.right) state.isAboveHole = true;
+        }
+        if (!ent.classList.contains('hole') && 
+            pRect.left + hitMargin < eRect.right && pRect.right - hitMargin > eRect.left &&
+            pRect.top + hitMargin < eRect.bottom && pRect.bottom - hitMargin > eRect.top) {
             if (ent.classList.contains('item')) {
-                setTimeout(() => playItemSe(), 30);
+                setTimeout(() => playSe('itemSe', config.itemSeVolume), 30);
                 ent.remove(); state.scoreRaw += 500;
                 if (!state.isFever) { state.feverGauge = Math.min(100, state.feverGauge + 10); if (state.feverGauge >= 100) startFever(); }
             } else {
-                const isStompable = ent.classList.contains('stompEnemy') || ent.classList.contains('flyEnemy') || ent.classList.contains('obstacle');
-                if (isStompable) {
+                const stompable = ent.classList.contains('stompEnemy') || ent.classList.contains('flyEnemy') || ent.classList.contains('obstacle');
+                if (stompable) {
                     const isFalling = state.velocityY > 0;
-                    const playerBottom = pRect.bottom - hitMargin;
-                    const enemyTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
-                    if (isFalling && playerBottom < enemyTopLimit + 20) {
-                        playStompSe(); createStompEffect(eRect.left + eRect.width/2, eRect.top);
-                        state.stompCount++; 
+                    const pBottom = pRect.bottom - hitMargin;
+                    const eTopLimit = ent.classList.contains('flyEnemy') ? eRect.top + 35 : eRect.top + 20;
+                    if (isFalling && pBottom < eTopLimit + 20) {
+                        playSe('stompSe', config.stompSeVolume);
+                        createStompEffect(eRect.left + eRect.width/2, eRect.top);
+                        state.stompCount++;
                         ent.remove(); state.scoreRaw += 500; state.velocityY = config.stompBouncePower; state.jumps = 1;
                         if (!state.isFever) state.feverGauge = Math.min(100, state.feverGauge + 5);
                     } else if (!state.isFever) { triggerMiss(); return; }
                 }
             }
         }
-        if (x < -25) ent.remove();
+        if (x < -200) ent.remove();
+    }
+}
+
+function handleInput() {
+    if (currentState !== GameState.PLAYING || state.isMissed || state.jumps >= 2) return;
+    if (state.jumps === 1) {
+        if (spinTimeoutId) clearTimeout(spinTimeoutId);
+        el.player.classList.remove('player-spin-anim'); void el.player.offsetWidth;
+        el.player.classList.add('player-spin-anim');
+        spinTimeoutId = setTimeout(() => el.player.classList.remove('player-spin-anim'), 360);
+    }
+    state.velocityY = config.jumpPower; state.jumps++;
+    setPlayerImage('playerJump');
+}
+
+function setPlayerImage(key) {
+    if (currentPlayerImageKey === key) return;
+    let nextAsset = loadedAssets[key] || loadedAssets['player'];
+    if (!nextAsset) return;
+    const target = (currentImgTag === 'main') ? el.playerImgSub : el.playerImgMain;
+    const old = (currentImgTag === 'main') ? el.playerImgMain : el.playerImgSub;
+    target.src = nextAsset.src; target.style.opacity = 1; old.style.opacity = 0;
+    currentImgTag = (currentImgTag === 'main') ? 'sub' : 'main';
+    currentPlayerImageKey = key;
+}
+
+function createStompEffect(x, y) {
+    const colors = ['#fff', '#ff0', '#0ff'];
+    for (let i = 0; i < 3; i++) {
+        const fx = document.createElement('div');
+        fx.className = 'stomp-effect'; fx.textContent = '★';
+        fx.style.color = colors[Math.floor(Math.random() * colors.length)];
+        fx.style.left = (x + (Math.random()-0.5)*40) + 'px'; fx.style.top = (y + (Math.random()-0.5)*30) + 'px';
+        el.container.appendChild(fx); setTimeout(() => fx.remove(), 400);
     }
 }
 
 function triggerMiss() {
     if (state.isMissed) return;
-    setPlayerImage('playerMiss');
-    playMissSe(); 
-    if (gameBgm) gameBgm.volume = config.bgmVolume * 0.2;
-    if (missTimeoutId) { clearTimeout(missTimeoutId); missTimeoutId = null; }
     state.isMissed = true;
+    setPlayerImage('playerMiss');
+    playSe('missSe', config.missSeVolume);
+    const bgm = loadedAssets['bgm'];
+    if (bgm) bgm.volume = config.bgmVolume * 0.2;
     el.player.classList.remove('player-spin-anim');
-    state.velocityY = -12; 
-    missTimeoutId = setTimeout(() => showGameOver(), 800);
+    state.velocityY = -12;
+    setTimeout(() => {
+        if (bgmFadeInterval) clearInterval(bgmFadeInterval); // フェード中断
+        currentState = GameState.GAMEOVER;
+        showResult();
+    }, 800);
 }
 
 function startFever() {
     if (feverTimeoutId) clearTimeout(feverTimeoutId);
     state.isFever = true; el.container.classList.add('fever-mode');
     feverTimeoutId = setTimeout(() => {
-        if (!state.running) return;
-        state.isFever = false; state.feverGauge = 0; el.container.classList.remove('fever-mode'); feverTimeoutId = null;
+        if (currentState !== GameState.PLAYING) return;
+        state.isFever = false; state.feverGauge = 0; el.container.classList.remove('fever-mode');
     }, config.feverDuration);
 }
 
-function draw() {
-    el.player.style.bottom = (config.groundHeight + (state.playerY / window.innerHeight * 100)) + '%';
-    el.score.textContent = Math.floor(state.scoreRaw); el.feverBar.style.width = state.feverGauge + '%';
+function showResult() {
+    const bgm = loadedAssets['bgm'];
+    if (bgm) { bgm.pause(); bgm.currentTime = 0; }
+    if (animationId) cancelAnimationFrame(animationId);
+    const isVal = state.playTime >= 5 && state.scoreRaw >= 1000 && state.stompCount > 0;
+    let total = 45 + Math.floor(Math.random()*5);
+    let skill = { technique: 40, attack: 40, jump: 40, ruby: 40 };
+    if (isVal) {
+        skill.technique = Math.min(100, 60 + state.stompCount * 2); skill.attack = Math.min(100, 50 + state.stompCount * 3);
+        skill.jump = Math.min(100, 60 + (state.playTime * 1.2)); skill.ruby = Math.min(100, 50 + Math.floor(state.scoreRaw / 500));
+        const raw = Math.round(skill.technique*0.25 + skill.attack*0.25 + skill.jump*0.25 + skill.ruby*0.25);
+        total = Math.round(raw);
+        if (raw >= 80 && raw <= 95) {
+            const b = Math.random(); if (b < 0.5) total = 89; else if (b < 0.7) total = 88; else if (b < 0.9) total = 90;
+        }
+        if (raw > 95) total = (state.playTime > 50) ? 100 : 95 + Math.floor(Math.random()*3);
+    }
+    el.titleScreen.style.display = 'none'; el.resultScreen.style.display = 'block'; el.overlay.style.display = 'flex';
+    document.getElementById('res-tech').textContent = "テクニック：" + Math.round(skill.technique) + "点";
+    document.getElementById('res-attack').textContent = "アタック：" + Math.round(skill.attack) + "点";
+    document.getElementById('res-jump').textContent = "ジャンプ：" + Math.round(skill.jump) + "点";
+    document.getElementById('res-ruby').textContent = "るびぃゲット：" + Math.round(skill.ruby) + "点";
+    const resTotal = document.getElementById('res-total');
+    resTotal.textContent = "TOTAL：" + Math.round(total) + "点";
+    resTotal.style.color = (Math.round(total) === 100) ? "#ffd700" : "#ffeb3b";
+    if (total >= 95) resTotal.textContent += " ★EXCELLENT★";
+    if (Math.round(total) === 100) resTotal.textContent = "TOTAL：100点 ★PERFECT★";
 }
-
-function showGameOver() {
-    state.running = false;
-    if (gameBgm) { gameBgm.pause(); gameBgm.currentTime = 0; gameBgm.volume = config.bgmVolume; }
-    if (feverTimeoutId) clearTimeout(feverTimeoutId); if (spinTimeoutId) clearTimeout(spinTimeoutId);
-    if (missTimeoutId) { clearTimeout(missTimeoutId); missTimeoutId = null; }
-    setTimeout(showResult, 800);
-}
-
-init();
 </script>
 </body>
 </html>
